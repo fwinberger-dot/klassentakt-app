@@ -10,7 +10,7 @@ if (trusted) {
   contextBridge.exposeInMainWorld('klassentaktShell', Object.freeze({
     isShell: true,
     platform: process.platform,
-    shellVersion: '0.1.0',
+    shellVersion: '0.1.1',
     features: Object.freeze([]), // z.B. später: ['beamer', 'embed']
   }));
 }

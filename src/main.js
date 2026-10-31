@@ -8,13 +8,50 @@ const fs = require('fs');
 const START_URL = 'https://klassentakt.ch/';
 const UPDATE_URL = 'https://klassentakt.ch/app/version.json';
 const APP_HOSTS = ['klassentakt.ch'];
-// Login-Anbieter dürfen im App-Fenster (als Pop-up) laufen.
-const LOGIN_HOSTS = ['jobnavigator.ch', 'accounts.google.com', 'login.microsoftonline.com', 'login.live.com', 'login.microsoft.com'];
+// Login-Anbieter dürfen im App-Fenster laufen. Google NICHT: Google blockiert
+// Logins in App-Fenstern («Browser nicht sicher»), darum läuft Google im Systembrowser.
+const LOGIN_HOSTS = ['jobnavigator.ch', 'login.microsoftonline.com', 'login.live.com', 'login.microsoft.com'];
+const PROTOCOL = 'klassentakt';
+// Anbieter, deren Login im Systembrowser läuft und per klassentakt://auth?code=… zurückkommt.
+const EXTERNAL_LOGIN = ['google'];
 
 const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ''; } };
 const matches = (host, list) => list.some((h) => host === h || host.endsWith('.' + h));
 const isApp = (u) => matches(hostOf(u), APP_HOSTS);
 const isLogin = (u) => matches(hostOf(u), LOGIN_HOSTS);
+const isGoogleAuth = (u) => matches(hostOf(u), ['accounts.google.com']);
+
+/* ---------- Login im Systembrowser ---------- */
+// Erkennt https://klassentakt.ch/auth/<anbieter>/start?next=… für Anbieter aus EXTERNAL_LOGIN.
+function externalLoginUrl(u) {
+  try {
+    const url = new URL(u);
+    if (!isApp(u)) return null;
+    const m = url.pathname.match(/^\/auth\/([a-z]+)\/start\/?$/);
+    if (!m || !EXTERNAL_LOGIN.includes(m[1])) return null;
+    url.searchParams.set('app', '1');
+    return url.toString();
+  } catch { return null; }
+}
+function startExternalLogin(url) {
+  shell.openExternal(url);
+  if (win && !win.isDestroyed()) win.loadFile(path.join(__dirname, 'login-extern.html'));
+}
+// klassentakt://auth?code=…&next=/… → Code auf klassentakt.ch einlösen (setzt das Login-Cookie in der App).
+function handleDeepLink(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== PROTOCOL + ':' || u.hostname !== 'auth') return;
+    const code = u.searchParams.get('code') || '';
+    if (!/^[A-Za-z0-9_-]{16,200}$/.test(code)) return;
+    let next = u.searchParams.get('next') || '/';
+    if (!next.startsWith('/') || next.startsWith('//')) next = '/';
+    const target = `https://klassentakt.ch/auth/app/redeem?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`;
+    if (!win || win.isDestroyed()) createWindow(target); else win.loadURL(target);
+    if (win.isMinimized()) win.restore();
+    win.show(); win.focus(); app.focus({ steal: true });
+  } catch {}
+}
 
 // Google blockiert Logins in Fenstern, die sich als «Electron» ausweisen.
 // Darum melden wir uns als normales Chrome.
@@ -37,7 +74,7 @@ function saveState() {
 }
 
 /* ---------- Hauptfenster ---------- */
-function createWindow() {
+function createWindow(startUrl) {
   const st = loadState();
   win = new BrowserWindow({
     x: st.x, y: st.y, width: st.width || 1360, height: st.height || 860,
@@ -61,12 +98,15 @@ function createWindow() {
   win.webContents.on('did-fail-load', (_e, code, _desc, url, isMain) => {
     if (isMain && code !== -3) win.loadFile(path.join(__dirname, 'offline.html'), { query: { ziel: url || START_URL } });
   });
-  win.loadURL(START_URL);
+  win.loadURL(startUrl || START_URL);
 }
 
 /* ---------- Navigation: Klassentakt im Fenster, alles andere im Browser ---------- */
 function wireNavigation(wc) {
   wc.setWindowOpenHandler(({ url }) => {
+    const ext = externalLoginUrl(url);
+    if (ext) { startExternalLogin(ext); return { action: 'deny' }; }
+    if (isGoogleAuth(url)) { shell.openExternal(url); return { action: 'deny' }; }
     if (isApp(url) || isLogin(url)) {
       return {
         action: 'allow',
@@ -79,11 +119,20 @@ function wireNavigation(wc) {
     if (/^https?:|^mailto:/.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  wc.on('will-navigate', (e, url) => {
+  const guard = (e, url) => {
+    const ext = externalLoginUrl(url);
+    if (ext) { e.preventDefault(); startExternalLogin(ext); return; }
+    if (isGoogleAuth(url)) { // Umleitung zu Google ohne unseren Start-Link: Login neu im Browser starten
+      e.preventDefault();
+      startExternalLogin('https://klassentakt.ch/auth/google/start?next=%2F&app=1');
+      return;
+    }
     if (url.startsWith('file:') || isApp(url) || isLogin(url)) return;
     e.preventDefault();
     if (/^https?:|^mailto:/.test(url)) shell.openExternal(url);
-  });
+  };
+  wc.on('will-navigate', guard);
+  wc.on('will-redirect', guard);
   wc.on('did-create-window', (child) => wireNavigation(child.webContents));
 }
 
@@ -183,12 +232,25 @@ function buildMenu() {
 }
 
 /* ---------- Start ---------- */
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+// klassentakt://-Links (Rückkehr vom Login im Browser)
+if (process.defaultApp && process.argv.length >= 2) {
+  app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL);
+}
+let pendingLink = null;
+app.on('open-url', (e, url) => { e.preventDefault(); if (app.isReady() && win) handleDeepLink(url); else pendingLink = url; });
+app.on('second-instance', (_e, argv) => {
+  const link = argv.find((a) => a.startsWith(PROTOCOL + '://'));
+  if (link) return handleDeepLink(link);
+  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+});
 app.whenReady().then(() => {
   app.setAboutPanelOptions({ applicationName: 'Klassentakt', applicationVersion: app.getVersion(), copyright: '© 2026 Florian Winberger', website: START_URL });
   wirePermissions();
   buildMenu();
   createWindow();
+  if (pendingLink) { handleDeepLink(pendingLink); pendingLink = null; }
   setTimeout(() => checkUpdate(false), 8000);
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
