@@ -1,9 +1,10 @@
 // Klassentakt – Mac-Hülle (Electron)
 // Lädt klassentakt.ch in einem eigenen App-Fenster. Spätere Funktionen
 // (Beamer-Steuerung, Webseiten einbetten) docken über die Brücke in preload.js an.
-const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, net } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, net, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const beamer = require('./beamer');
 
 const START_URL = 'https://klassentakt.ch/';
 const UPDATE_URL = 'https://klassentakt.ch/app/version.json';
@@ -103,11 +104,22 @@ function createWindow(startUrl) {
 
 /* ---------- Navigation: Klassentakt im Fenster, alles andere im Browser ---------- */
 function wireNavigation(wc) {
-  wc.setWindowOpenHandler(({ url }) => {
+  wc.setWindowOpenHandler(({ url, frameName }) => {
     const ext = externalLoginUrl(url);
     if (ext) { startExternalLogin(ext); return { action: 'deny' }; }
     if (isGoogleAuth(url)) { shell.openExternal(url); return { action: 'deny' }; }
-    if (isApp(url) || isLogin(url)) {
+    const blank = !url || url === 'about:blank';
+    // Classroom Screen: eigenes Fenster, später auf den Beamer (siehe did-create-window)
+    if ((isApp(url) || blank) && beamer.isScreenRequest(url, frameName)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          ...beamer.windowOptions(win),
+          webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true },
+        },
+      };
+    }
+    if (isApp(url) || isLogin(url) || blank) {
       return {
         action: 'allow',
         overrideBrowserWindowOptions: {
@@ -133,7 +145,10 @@ function wireNavigation(wc) {
   };
   wc.on('will-navigate', guard);
   wc.on('will-redirect', guard);
-  wc.on('did-create-window', (child) => wireNavigation(child.webContents));
+  wc.on('did-create-window', (child, details) => {
+    wireNavigation(child.webContents);
+    if (beamer.isScreenRequest(details.url, details.frameName)) beamer.adopt(child, win);
+  });
 }
 
 /* ---------- Berechtigungen: nur für Klassentakt ---------- */
@@ -178,6 +193,47 @@ async function checkUpdate(manual) {
   } catch (e) {
     if (manual) dialog.showMessageBox(win, { type: 'warning', message: 'Update-Prüfung nicht möglich', detail: 'Bitte später nochmals versuchen.' });
   }
+}
+
+/* ---------- Beamer-Menü (wird bei jeder Änderung neu aufgebaut) ---------- */
+function beamerMenu() {
+  const s = beamer.state();
+  const shows = s.displays.map((d) => ({
+    label: d.label + (d.primary ? ' (Hauptbildschirm)' : ''),
+    type: 'radio',
+    checked: s.open ? s.onDisplay === d.id : (s.settings.displayId ? s.settings.displayId === d.id : d.primary && s.displays.length === 1),
+    enabled: s.open,
+    click: () => beamer.moveTo(d.id),
+  }));
+  return {
+    label: 'Beamer',
+    submenu: [
+      { label: s.open ? 'Classroom Screen ist offen' : 'Classroom Screen ist nicht offen', enabled: false },
+      { label: 'Screen auf nächsten Bildschirm', accelerator: 'CmdOrCtrl+Shift+B', enabled: s.open && s.displays.length > 1, click: () => beamer.moveNext() },
+      { label: 'Screen-Vollbild an/aus', accelerator: 'CmdOrCtrl+Shift+F', enabled: s.open, click: () => beamer.toggleFullscreen() },
+      { type: 'separator' },
+      { label: 'Screen anzeigen auf', enabled: s.open && s.displays.length > 1, submenu: shows.length ? shows : [{ label: 'Kein Bildschirm', enabled: false }] },
+      { type: 'separator' },
+      { label: 'Screen automatisch auf den Beamer', type: 'checkbox', checked: s.settings.auto, click: (i) => beamer.setSetting('auto', i.checked) },
+      { label: 'Auf dem Beamer im Vollbild', type: 'checkbox', checked: s.settings.fullscreen, click: (i) => beamer.setSetting('fullscreen', i.checked) },
+      { label: 'Mac wach halten, solange der Screen offen ist', type: 'checkbox', checked: s.settings.keepAwake, click: (i) => beamer.setSetting('keepAwake', i.checked) },
+      { type: 'separator' },
+      { label: s.displays.length > 1 ? `${s.displays.length} Bildschirme erkannt` : 'Nur ein Bildschirm erkannt (Beamer gespiegelt oder nicht angeschlossen)', enabled: false },
+    ],
+  };
+}
+
+/* ---------- Brücke für die Web-App (window.klassentaktShell.beamer) ---------- */
+function wireBridge() {
+  const fromApp = (e) => isApp(e.senderFrame ? e.senderFrame.url : e.sender.getURL());
+  ipcMain.handle('beamer:state', (e) => (fromApp(e) ? beamer.state() : null));
+  ipcMain.handle('beamer:moveTo', (e, id) => (fromApp(e) ? beamer.moveTo(Number(id)) : false));
+  ipcMain.handle('beamer:next', (e) => (fromApp(e) ? beamer.moveNext() : false));
+  ipcMain.handle('beamer:fullscreen', (e) => (fromApp(e) ? beamer.toggleFullscreen() : false));
+}
+function broadcastBeamer() {
+  const st = beamer.state();
+  BrowserWindow.getAllWindows().forEach((w) => { try { if (isApp(w.webContents.getURL())) w.webContents.send('beamer:changed', st); } catch {} });
 }
 
 /* ---------- Menü ---------- */
@@ -225,6 +281,7 @@ function buildMenu() {
         { label: 'Vorwärts', accelerator: 'CmdOrCtrl+]', click: () => win && win.webContents.navigationHistory.canGoForward() && win.webContents.navigationHistory.goForward() },
       ],
     },
+    beamerMenu(),
     { role: 'windowMenu', label: 'Fenster' },
     { role: 'help', label: 'Hilfe', submenu: [{ label: 'klassentakt.ch im Browser öffnen', click: () => shell.openExternal(START_URL) }] },
   ];
@@ -248,6 +305,8 @@ app.on('second-instance', (_e, argv) => {
 app.whenReady().then(() => {
   app.setAboutPanelOptions({ applicationName: 'Klassentakt', applicationVersion: app.getVersion(), copyright: '© 2026 Florian Winberger', website: START_URL });
   wirePermissions();
+  beamer.init(() => { buildMenu(); broadcastBeamer(); });
+  wireBridge();
   buildMenu();
   createWindow();
   if (pendingLink) { handleDeepLink(pendingLink); pendingLink = null; }
