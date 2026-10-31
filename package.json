@@ -1,0 +1,44 @@
+{
+  "name": "klassentakt-app",
+  "productName": "Klassentakt",
+  "version": "0.1.0",
+  "description": "Klassentakt als Mac-App: Planung und Classroom Screen.",
+  "author": "Florian Winberger",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js",
+    "dist:mac": "electron-builder --mac --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.7.2",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "ch.klassentakt.app",
+    "productName": "Klassentakt",
+    "copyright": "© 2026 Florian Winberger",
+    "files": ["src/**/*", "package.json"],
+    "directories": { "buildResources": "build", "output": "dist" },
+    "mac": {
+      "category": "public.app-category.education",
+      "icon": "build/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Klassentakt braucht das Mikrofon für den Ruhe-Timer.",
+        "NSCameraUsageDescription": "Klassentakt braucht die Kamera für die Dokumentenkamera."
+      }
+    },
+    "dmg": {
+      "title": "Klassentakt ${version}",
+      "artifactName": "Klassentakt-${version}.dmg"
+    }
+  }
+}
