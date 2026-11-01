@@ -1,1 +1,2 @@
-Test-Update: Im Menü «Hilfe» steht jetzt die App-Version.
+- Schöneres Update-Fenster im Klassentakt-Look
+- Fortschrittsbalken beim Laden des Updates

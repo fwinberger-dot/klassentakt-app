@@ -4,7 +4,7 @@
 //
 // Ablauf: latest.json holen → zip laden → SHA-256 prüfen → entpacken (ditto) →
 // Hilfsskript wartet, bis die App beendet ist, tauscht die App aus und startet sie neu.
-const { app, dialog, net, shell } = require('electron');
+const { app, net, shell, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -54,7 +54,7 @@ async function fetchLatest() {
 }
 
 /** zip herunterladen, Fortschritt im Dock, SHA-256 prüfen. */
-async function download(info, file) {
+async function download(info, file, onProgress = () => {}) {
   const res = await net.fetch(info.url, { cache: 'no-store' });
   if (!res.ok || !res.body) throw new Error('Download HTTP ' + res.status);
   const total = Number(res.headers.get('content-length')) || info.size || 0;
@@ -71,7 +71,7 @@ async function download(info, file) {
       hash.update(chunk);
       if (!out.write(chunk)) await new Promise((r) => out.once('drain', r));
       got += chunk.length;
-      if (win && !win.isDestroyed() && total) win.setProgressBar(Math.min(1, got / total));
+      if (total) { const p = Math.min(1, got / total); onProgress(p); if (win && !win.isDestroyed()) win.setProgressBar(p); }
     }
   } finally {
     await new Promise((r) => out.end(r));
@@ -101,11 +101,11 @@ rm -rf "$WORK"
 `;
 }
 
-async function install(info) {
+async function install(info, onProgress, onRestart = () => {}) {
   const target = bundlePath();
   const work = fs.mkdtempSync(path.join(app.getPath('temp'), 'klassentakt-update-'));
   const zip = path.join(work, 'update.zip');
-  await download(info, zip);
+  await download(info, zip, onProgress);
   const unpack = path.join(work, 'neu');
   fs.mkdirSync(unpack);
   await run('/usr/bin/ditto', ['-x', '-k', zip, unpack]);
@@ -116,49 +116,78 @@ async function install(info) {
   fs.rmSync(zip, { force: true });
   const script = path.join(work, 'tauschen.sh');
   fs.writeFileSync(script, swapScript(), { mode: 0o755 });
+  onRestart();
+  await new Promise((r) => setTimeout(r, 1200)); // «Startet neu …» kurz zeigen
   spawn('/bin/sh', [script, String(process.pid), fresh, target, work], { detached: true, stdio: 'ignore' }).unref();
   app.quit();
 }
 
-/**
- * Nach Updates suchen. manual=true: auch «aktuell»/Fehler melden (Menü).
- */
+/* ---------- Update-Fenster im Klassentakt-Look ---------- */
+let upWin = null;
+let current = null; // { state, info, problem, message }
+
+function send(patch) {
+  current = { ...current, ...patch };
+  if (upWin && !upWin.isDestroyed()) upWin.webContents.send('update:state', current);
+}
+
+function openWindow(initial) {
+  current = { installed: app.getVersion(), ...initial };
+  if (upWin && !upWin.isDestroyed()) { send({}); upWin.show(); upWin.focus(); return; }
+  const parent = getWin();
+  upWin = new BrowserWindow({
+    width: 440, height: 400, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
+    show: false, title: 'Klassentakt-Update', titleBarStyle: 'hiddenInset', backgroundColor: '#fff4e6',
+    parent: parent && !parent.isDestroyed() ? parent : undefined,
+    webPreferences: { preload: path.join(__dirname, 'update-preload.js'), contextIsolation: true, sandbox: true },
+  });
+  upWin.loadFile(path.join(__dirname, 'update.html'));
+  upWin.once('ready-to-show', () => { upWin.show(); });
+  upWin.on('closed', () => {
+    if (current && current.state === 'offer') declined = current.info.version;
+    upWin = null;
+  });
+}
+
+function wireIpc() {
+  const ok = (e) => upWin && !upWin.isDestroyed() && e.sender === upWin.webContents;
+  ipcMain.handle('update:get', (e) => (ok(e) ? current : null));
+  ipcMain.handle('update:resize', (e, h) => { if (ok(e)) { const [w] = upWin.getContentSize(); upWin.setContentSize(w, Math.max(240, Math.min(640, Math.round(h)))); } });
+  ipcMain.handle('update:choose', async (e, choice) => {
+    if (!ok(e) || !current) return;
+    if (choice === 'later' || choice === 'close') { if (current.state === 'offer') declined = current.info.version; upWin.close(); return; }
+    if (choice === 'page') { shell.openExternal(RELEASES_PAGE); upWin.close(); return; }
+    if (choice === 'install' && current.state === 'offer' && !current.problem) {
+      send({ state: 'download', progress: 0 });
+      try {
+        let last = 0;
+        await install(current.info, (p) => { if (p - last >= 0.01 || p === 1) { last = p; send({ progress: p }); } }, () => send({ state: 'restart' }));
+      } catch (err) {
+        send({ state: 'error', message: err.message });
+      }
+    }
+  });
+}
+
+/** Nach Updates suchen. manual=true: Fenster auch bei «aktuell» oder Fehler (Menü). */
 async function check(manual) {
   if (busy) return;
   busy = true;
-  const win = getWin();
   try {
     let info;
     try { info = await fetchLatest(); } catch (e) {
-      if (manual) await dialog.showMessageBox(win, { type: 'warning', message: 'Update-Prüfung nicht möglich', detail: 'Bitte später nochmals versuchen.\n\n' + e.message });
+      if (manual) openWindow({ state: 'checkfail', message: e.message });
       return;
     }
     if (!newer(info.version, app.getVersion())) {
-      if (manual) await dialog.showMessageBox(win, { type: 'info', message: 'Klassentakt ist aktuell', detail: `Version ${app.getVersion()}` });
+      if (manual) openWindow({ state: 'current' });
       return;
     }
     if (!manual && declined === info.version) return;
-    const problem = installProblem();
-    const { response } = await dialog.showMessageBox(win, {
-      type: 'info',
-      buttons: problem ? ['Download-Seite öffnen', 'Später'] : ['Jetzt aktualisieren', 'Später'],
-      defaultId: 0, cancelId: 1,
-      message: `Klassentakt ${info.version} ist da`,
-      detail: (info.notes ? info.notes.trim() + '\n\n' : '') + `Installiert ist ${app.getVersion()}.` +
-        (problem ? '\n\n' + problem : '\n\nDie App lädt das Update, schliesst sich kurz und startet neu.'),
-    });
-    if (response !== 0) { declined = info.version; return; }
-    if (problem) { shell.openExternal(RELEASES_PAGE); return; }
-    try { await install(info); } catch (e) {
-      const r = await dialog.showMessageBox(win, {
-        type: 'warning', buttons: ['Download-Seite öffnen', 'Schliessen'], defaultId: 0, cancelId: 1,
-        message: 'Update fehlgeschlagen', detail: e.message + '\n\nDu kannst die neue Version auch von Hand installieren.',
-      });
-      if (r.response === 0) shell.openExternal(RELEASES_PAGE);
-    }
+    openWindow({ state: 'offer', info, problem: installProblem() });
   } finally { busy = false; }
 }
 
-function init(winGetter) { getWin = winGetter || getWin; }
+function init(winGetter) { getWin = winGetter || getWin; wireIpc(); }
 
 module.exports = { init, check, newer, bundlePath, installProblem, swapScript, LATEST_URL };

@@ -9,7 +9,7 @@ if (trusted) {
   contextBridge.exposeInMainWorld('klassentaktShell', Object.freeze({
     isShell: true,
     platform: process.platform,
-    shellVersion: '0.3.1',
+    shellVersion: '0.3.2',
     features: Object.freeze(['beamer', 'update']),
     beamer: Object.freeze({
       // { open, fullscreen, onDisplay, awake, settings, displays:[{id,label,primary,internal}] }

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
+<title>Klassentakt-Update</title>
+<style>
+  :root{--bg:#fff4e6;--panel:#fff;--ink:#2b2d42;--ink2:#5c5f7a;--accent:#ff5d73;--accent2:#e8475e;--line:#fbecd9;--green:#42a27a}
+  @media (prefers-color-scheme: dark){:root{--bg:#0e1015;--panel:#171a21;--ink:#e8eaed;--ink2:#9aa3ad;--accent:#ff7a8c;--accent2:#ff5d73;--line:#252a33}}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,"SF Pro Text","Segoe UI",sans-serif;-webkit-user-select:none;user-select:none}
+  .drag{height:30px;-webkit-app-region:drag}
+  main{padding:0 28px 26px;text-align:center}
+  .logo{display:block;margin:2px auto 12px}
+  .badge{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.02em;padding:3px 10px;border-radius:999px;background:var(--line);color:var(--ink2);margin-bottom:8px}
+  h1{font-size:20px;line-height:1.25;margin:0 0 6px}
+  p{margin:0 0 6px;color:var(--ink2)}
+  .notes{background:var(--panel);border-radius:14px;padding:12px 16px;margin:14px 0 4px;text-align:left;box-shadow:0 2px 0 rgba(43,45,66,.06)}
+  .notes ul{margin:0;padding-left:18px}.notes li{margin:2px 0}.notes p{color:var(--ink);margin:0}
+  .small{font-size:12px;color:var(--ink2);margin-top:10px}
+  .bar{height:10px;border-radius:999px;background:var(--line);overflow:hidden;margin:18px 0 8px}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#ffb020);border-radius:999px;transition:width .2s}
+  .actions{display:flex;gap:10px;justify-content:center;margin-top:18px}
+  button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:10px 20px;cursor:pointer}
+  .primary{background:var(--accent);color:#fff}.primary:hover{background:var(--accent2)}
+  button:focus{outline:none}button:focus-visible{box-shadow:0 0 0 3px rgba(255,93,115,.35)}
+  .ghost{background:var(--line);color:var(--ink)}
+  .ok{color:var(--green)}
+  .spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);margin:16px auto 4px;animation:s 0.9s linear infinite}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="drag"></div>
+<main id="m"></main>
+<script>
+const LOGO = '<svg class="logo" viewBox="0 0 120 120" width="56" height="56" aria-hidden="true"><rect x="12" y="14" width="44" height="26" rx="10" fill="#FF5D73"/><rect x="64" y="14" width="44" height="26" rx="10" fill="#6C4BD8"/><rect x="12" y="47" width="44" height="26" rx="10" fill="#FFB020"/><rect x="64" y="47" width="44" height="26" rx="10" fill="#42A27A"/><rect x="12" y="80" width="44" height="26" rx="10" fill="#2F7FB5"/><rect x="64" y="80" width="44" height="26" rx="10" fill="#FFD3DA"/></svg>';
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function notesHtml(t) {
+  const lines = String(t || '').split('\n').map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return '';
+  const items = lines.filter((l) => /^[-•*]\s+/.test(l));
+  const body = items.length === lines.length
+    ? '<ul>' + items.map((l) => '<li>' + esc(l.replace(/^[-•*]\s+/, '')) + '</li>').join('') + '</ul>'
+    : lines.map((l) => '<p>' + esc(l.replace(/^[-•*]\s+/, '• ')) + '</p>').join('');
+  return '<div class="notes">' + body + '</div>';
+}
+const btn = (cls, choice, label) => `<button class="${cls}" data-c="${choice}">${label}</button>`;
+let lastKey = '';
+function render(st) {
+  if (!st) return;
+  const m = document.getElementById('m');
+  if (st.state === 'download' && lastKey === 'download') { // nur Balken nachführen
+    const p = Math.round((st.progress || 0) * 100);
+    m.querySelector('.bar i').style.width = p + '%';
+    m.querySelector('[data-p]').textContent = p + ' %';
+    return;
+  }
+  lastKey = st.state;
+  let h = LOGO;
+  const v = st.info ? st.info.version : '';
+  switch (st.state) {
+    case 'offer':
+      h += `<div class="badge">Neu: Version ${esc(v)}</div><h1>Klassentakt hat ein Update</h1>`;
+      h += notesHtml(st.info.notes);
+      if (st.problem) {
+        h += `<p class="small">${esc(st.problem)}</p><div class="actions">${btn('ghost', 'later', 'Später')}${btn('primary', 'page', 'Download-Seite öffnen')}</div>`;
+      } else {
+        h += `<p class="small">Dauert etwa eine Minute. Die App startet danach von selbst neu – deine Daten bleiben, wie sie sind.</p>`;
+        h += `<div class="actions">${btn('ghost', 'later', 'Später')}${btn('primary', 'install', 'Jetzt aktualisieren')}</div>`;
+      }
+      break;
+    case 'download':
+      h += `<h1>Update wird geladen …</h1><div class="bar"><i style="width:${Math.round((st.progress||0)*100)}%"></i></div><p data-p>${Math.round((st.progress||0)*100)} %</p><p class="small">Du kannst weiterarbeiten, bis die App neu startet.</p>`;
+      break;
+    case 'restart':
+      h += `<h1>Fast fertig</h1><div class="spin"></div><p>Klassentakt startet neu …</p>`;
+      break;
+    case 'current':
+      h += `<h1 class="ok">Alles aktuell ✓</h1><p>Du hast die neuste Version (${esc(st.installed)}).</p><div class="actions">${btn('primary', 'close', 'Super')}</div>`;
+      break;
+    case 'checkfail':
+      h += `<h1>Gerade keine Verbindung</h1><p>Die Update-Prüfung hat nicht geklappt. Versuch es später nochmals.</p><p class="small">${esc(st.message)}</p><div class="actions">${btn('primary', 'close', 'OK')}</div>`;
+      break;
+    case 'error':
+      h += `<h1>Das hat nicht geklappt</h1><p>Das Update konnte nicht installiert werden. Deine App läuft weiter wie bisher.</p><p class="small">${esc(st.message)}</p><div class="actions">${btn('ghost', 'close', 'Schliessen')}${btn('primary', 'page', 'Von Hand installieren')}</div>`;
+      break;
+  }
+  m.innerHTML = h;
+  m.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => window.ktUpdate.choose(b.dataset.c)));
+  const prim = m.querySelector('.primary'); if (prim) prim.focus();
+  requestAnimationFrame(() => window.ktUpdate.resize(document.body.scrollHeight));
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !['download', 'restart'].includes(lastKey)) window.ktUpdate.choose('close'); });
+window.ktUpdate.onState(render);
+window.ktUpdate.get().then(render);
+</script>
+</body>
+</html>
