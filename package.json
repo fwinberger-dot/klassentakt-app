@@ -32,6 +32,7 @@
       "category": "public.app-category.education",
       "icon": "build/icon.png",
       "identity": "-",
+      "artifactName": "Klassentakt-${version}-mac.${ext}",
       "hardenedRuntime": false,
       "target": [
         {
@@ -51,9 +52,6 @@
         "NSMicrophoneUsageDescription": "Klassentakt braucht das Mikrofon für den Ruhe-Timer.",
         "NSCameraUsageDescription": "Klassentakt braucht die Kamera für die Dokumentenkamera."
       }
-    },
-    "zip": {
-      "artifactName": "Klassentakt-${version}-mac.zip"
     },
     "dmg": {
       "title": "Klassentakt ${version}",
