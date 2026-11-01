@@ -19,10 +19,29 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: App bauen (ohne Apple-Signatur, ad hoc)
-        run: npm run dist:mac
+      - name: App bauen
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Sobald diese Secrets in GitHub hinterlegt sind, wird mit Developer ID signiert und von Apple geprüft.
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_P8_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          if [ -n "$CSC_LINK" ] && [ -n "$APPLE_API_KEY_BASE64" ]; then
+            echo "Signiere mit Developer ID und lasse von Apple prüfen (Notarisierung)"
+            echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/apple_api_key.p8"
+            export APPLE_API_KEY="$RUNNER_TEMP/apple_api_key.p8"
+            npx electron-builder --mac --publish never \
+              -c.mac.hardenedRuntime=true -c.mac.notarize=true \
+              -c.mac.entitlements=build/entitlements.mac.plist -c.mac.entitlementsInherit=build/entitlements.mac.plist
+          else
+            echo "Keine Apple-Secrets: ad hoc signiert (nur für Tests)"
+            unset CSC_LINK CSC_KEY_PASSWORD
+            CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac
+          fi
+      - name: Fester Download-Name (immer neuste Version)
+        run: cp dist/Klassentakt-*[0-9].dmg dist/Klassentakt-mac.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: Klassentakt-mac

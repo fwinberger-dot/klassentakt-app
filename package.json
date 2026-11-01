@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js && node --check src/update-preload.js",
-    "dist:mac": "electron-builder --mac --publish never"
+    "dist:mac": "electron-builder --mac --publish never -c.mac.identity=-"
   },
   "devDependencies": {
     "electron": "44.7.2",
@@ -31,7 +31,6 @@
     "mac": {
       "category": "public.app-category.education",
       "icon": "build/icon.png",
-      "identity": "-",
       "artifactName": "Klassentakt-${version}-mac.${ext}",
       "hardenedRuntime": false,
       "target": [
