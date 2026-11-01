@@ -1,2 +1,2 @@
-- Schöneres Update-Fenster im Klassentakt-Look
-- Fortschrittsbalken beim Laden des Updates
+- Google-Anmeldung: kein zweites Fenster mehr, klare Info statt Sackgasse
+- Schöneres Update-Fenster mit Fortschrittsbalken

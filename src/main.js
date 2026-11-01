@@ -1,7 +1,7 @@
 // Klassentakt – Mac-Hülle (Electron)
 // Lädt klassentakt.ch in einem eigenen App-Fenster. Spätere Funktionen
 // (Beamer-Steuerung, Webseiten einbetten) docken über die Brücke in preload.js an.
-const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, ipcMain, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const beamer = require('./beamer');
@@ -34,9 +34,24 @@ function externalLoginUrl(u) {
     return url.toString();
   } catch { return null; }
 }
-function startExternalLogin(url) {
-  shell.openExternal(url);
-  if (win && !win.isDestroyed()) win.loadFile(path.join(__dirname, 'login-extern.html'));
+// Kann klassentakt.ch den Login aus dem Browser schon an die App zurückgeben?
+// Solange /auth/app/redeem 404 liefert (Server-Teil fehlt), zeigen wir eine klare Info statt eines toten Browser-Logins.
+async function appLoginSupported() {
+  try { const r = await net.fetch('https://klassentakt.ch/auth/app/redeem?probe=1', { cache: 'no-store', redirect: 'manual' }); return r.status !== 404; }
+  catch { return false; }
+}
+let googleBusy = false;
+async function startExternalLogin(url, fromWc) {
+  // Login-Popup (z.B. Jobnavigator) schliessen, damit kein zweites Fenster hängen bleibt
+  if (fromWc && win && fromWc !== win.webContents) { const w = BrowserWindow.fromWebContents(fromWc); if (w && !w.isDestroyed()) w.close(); }
+  if (googleBusy) return; googleBusy = true;
+  try {
+    const ok = await appLoginSupported();
+    if (!win || win.isDestroyed()) createWindow();
+    if (ok) { shell.openExternal(url); win.loadFile(path.join(__dirname, 'login-extern.html')); }
+    else win.loadFile(path.join(__dirname, 'login-extern.html'), { query: { modus: 'bald' } });
+    win.show(); win.focus();
+  } finally { setTimeout(() => { googleBusy = false; }, 1500); }
 }
 // klassentakt://auth?code=…&next=/… → Code auf klassentakt.ch einlösen (setzt das Login-Cookie in der App).
 function handleDeepLink(raw) {
@@ -106,8 +121,8 @@ function createWindow(startUrl) {
 function wireNavigation(wc) {
   wc.setWindowOpenHandler(({ url, frameName }) => {
     const ext = externalLoginUrl(url);
-    if (ext) { startExternalLogin(ext); return { action: 'deny' }; }
-    if (isGoogleAuth(url)) { shell.openExternal(url); return { action: 'deny' }; }
+    if (ext) { startExternalLogin(ext, wc); return { action: 'deny' }; }
+    if (isGoogleAuth(url)) { startExternalLogin('https://klassentakt.ch/auth/google/start?next=%2F&app=1', wc); return { action: 'deny' }; }
     const blank = !url || url === 'about:blank';
     // Classroom Screen: eigenes Fenster, später auf den Beamer (siehe did-create-window)
     if ((isApp(url) || blank) && beamer.isScreenRequest(url, frameName)) {
@@ -133,12 +148,13 @@ function wireNavigation(wc) {
   });
   const guard = (e, url) => {
     const ext = externalLoginUrl(url);
-    if (ext) { e.preventDefault(); startExternalLogin(ext); return; }
+    if (ext) { e.preventDefault(); startExternalLogin(ext, wc); return; }
     if (isGoogleAuth(url)) { // Umleitung zu Google ohne unseren Start-Link: Login neu im Browser starten
       e.preventDefault();
-      startExternalLogin('https://klassentakt.ch/auth/google/start?next=%2F&app=1');
+      startExternalLogin('https://klassentakt.ch/auth/google/start?next=%2F&app=1', wc);
       return;
     }
+    if (isApp(url) && /[?&]im-browser=1/.test(url)) { e.preventDefault(); shell.openExternal(START_URL); return; }
     if (url.startsWith('file:') || isApp(url) || isLogin(url)) return;
     e.preventDefault();
     if (/^https?:|^mailto:/.test(url)) shell.openExternal(url);
