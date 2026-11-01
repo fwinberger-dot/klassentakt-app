@@ -1,1 +1,1 @@
-Neu: Die App aktualisiert sich ab jetzt selbst – ein Klick genügt.
+Test-Update: Im Menü «Hilfe» steht jetzt die App-Version.

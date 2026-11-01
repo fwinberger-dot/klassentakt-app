@@ -257,7 +257,7 @@ function buildMenu() {
     },
     beamerMenu(),
     { role: 'windowMenu', label: 'Fenster' },
-    { role: 'help', label: 'Hilfe', submenu: [{ label: 'klassentakt.ch im Browser öffnen', click: () => shell.openExternal(START_URL) }] },
+    { role: 'help', label: 'Hilfe', submenu: [{ label: 'klassentakt.ch im Browser öffnen', click: () => shell.openExternal(START_URL) }, { type: 'separator' }, { label: `App-Version ${app.getVersion()}`, enabled: false }] },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(t));
 }
