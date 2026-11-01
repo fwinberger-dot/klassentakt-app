@@ -1,0 +1,52 @@
+name: iPad-App bauen
+
+on:
+  push:
+    branches: [main]
+    paths: ['ios/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode-Projekt erzeugen
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Für den Simulator bauen (ohne Signatur)
+        working-directory: ios
+        run: |
+          xcodebuild -project Klassentakt.xcodeproj -scheme Klassentakt -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -40
+          ls build/Build/Products/Debug-iphonesimulator/
+      - name: Im iPad-Simulator starten und Screenshots machen
+        working-directory: ios
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          c=[x for k,v in d.items() if 'iOS' in k for x in v if 'iPad' in x['name']]
+          c.sort(key=lambda x: ('Pro' not in x['name'], x['name']))
+          print(c[0]['udid'])")
+          echo "Simulator: $UDID"
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 || true
+          xcrun simctl ui "$UDID" appearance light || true
+          xcrun simctl install "$UDID" build/Build/Products/Debug-iphonesimulator/Klassentakt.app
+          xcrun simctl launch "$UDID" ch.klassentakt.app
+          sleep 25
+          mkdir -p shots
+          xcrun simctl io "$UDID" screenshot shots/ipad-hochformat.png
+          xcrun simctl openurl "$UDID" "https://klassentakt.ch/?classroom=1" || true
+          xcrun simctl ui "$UDID" appearance dark || true
+          sleep 6
+          xcrun simctl io "$UDID" screenshot shots/ipad-dunkel.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ipad-screenshots
+          path: ios/shots/*.png

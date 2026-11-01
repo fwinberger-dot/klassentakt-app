@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Klassentakt – keine Verbindung</title>
+<style>
+  :root{--bg:#fff4e6;--panel:#fff;--ink:#2b2d42;--ink2:#5c5f7a;--accent:#ff5d73}
+  @media (prefers-color-scheme: dark){:root{--bg:#0e1015;--panel:#171a21;--ink:#e8eaed;--ink2:#9aa3ad;--accent:#ff7a8c}}
+  body{margin:0;height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font-family:-apple-system,"Segoe UI",sans-serif}
+  .card{background:var(--panel);border-radius:18px;padding:32px 36px;max-width:420px;text-align:center;box-shadow:0 3px 0 rgba(43,45,66,.08)}
+  h1{font-size:22px;margin:16px 0 6px} p{color:var(--ink2);margin:0 0 20px;line-height:1.45}
+  button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:10px 20px;background:var(--accent);color:#fff;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="card">
+    <svg viewBox="0 0 120 120" width="56" height="56" aria-hidden="true"><rect x="12" y="14" width="44" height="26" rx="10" fill="#FF5D73"/><rect x="64" y="14" width="44" height="26" rx="10" fill="#6C4BD8"/><rect x="12" y="47" width="44" height="26" rx="10" fill="#FFB020"/><rect x="64" y="47" width="44" height="26" rx="10" fill="#42A27A"/><rect x="12" y="80" width="44" height="26" rx="10" fill="#2F7FB5"/><rect x="64" y="80" width="44" height="26" rx="10" fill="#FFD3DA"/></svg>
+    <h1>Keine Verbindung zu Klassentakt</h1>
+    <p>Prüfe das WLAN. Sobald die Verbindung steht, lädt Klassentakt wieder.</p>
+    <button id="retry">Erneut versuchen</button>
+  </div>
+<script>
+  const ziel = new URLSearchParams(location.search).get('ziel') || 'https://klassentakt.ch/';
+  const go = () => { location.href = ziel.startsWith('https://') ? ziel : 'https://klassentakt.ch/'; };
+  document.getElementById('retry').onclick = go;
+  window.addEventListener('online', go);
+</script>
+</body>
+</html>
