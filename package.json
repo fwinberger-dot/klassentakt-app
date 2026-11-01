@@ -1,7 +1,7 @@
 {
   "name": "klassentakt-app",
   "productName": "Klassentakt",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Klassentakt als Mac-App: Planung und Classroom Screen.",
   "author": "Florian Winberger",
   "license": "UNLICENSED",
@@ -9,7 +9,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js",
     "dist:mac": "electron-builder --mac --publish never"
   },
   "devDependencies": {
@@ -51,6 +51,9 @@
         "NSMicrophoneUsageDescription": "Klassentakt braucht das Mikrofon für den Ruhe-Timer.",
         "NSCameraUsageDescription": "Klassentakt braucht die Kamera für die Dokumentenkamera."
       }
+    },
+    "zip": {
+      "artifactName": "Klassentakt-${version}-mac.zip"
     },
     "dmg": {
       "title": "Klassentakt ${version}",

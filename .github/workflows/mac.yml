@@ -3,7 +3,6 @@ name: Mac-App bauen
 on:
   push:
     branches: [main]
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -31,10 +30,26 @@ jobs:
             dist/*.dmg
             dist/*.zip
           retention-days: 30
-      - name: Release anlegen (nur bei Tag vX.Y.Z)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: latest.json erzeugen
+        run: node scripts/latest-json.js
+      - name: Version lesen und prüfen, ob es das Release schon gibt
+        id: ver
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(node -p "require('./package.json').version")
+          echo "v=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" >/dev/null 2>&1; then echo "neu=nein" >> "$GITHUB_OUTPUT"; else echo "neu=ja" >> "$GITHUB_OUTPUT"; fi
+      - name: Release veröffentlichen (nur wenn die Version neu ist)
+        if: steps.ver.outputs.neu == 'ja'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.ver.outputs.v }}
+          name: Klassentakt ${{ steps.ver.outputs.v }}
+          body_path: NEU.txt
+          target_commitish: ${{ github.sha }}
+          make_latest: 'true'
           files: |
             dist/*.dmg
             dist/*.zip
+            dist/latest.json

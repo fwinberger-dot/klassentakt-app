@@ -1,13 +1,13 @@
 // Klassentakt – Mac-Hülle (Electron)
 // Lädt klassentakt.ch in einem eigenen App-Fenster. Spätere Funktionen
 // (Beamer-Steuerung, Webseiten einbetten) docken über die Brücke in preload.js an.
-const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, net, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const beamer = require('./beamer');
+const updater = require('./updater');
 
 const START_URL = 'https://klassentakt.ch/';
-const UPDATE_URL = 'https://klassentakt.ch/app/version.json';
 const APP_HOSTS = ['klassentakt.ch'];
 // Login-Anbieter dürfen im App-Fenster laufen. Google NICHT: Google blockiert
 // Logins in App-Fenstern («Browser nicht sicher»), darum läuft Google im Systembrowser.
@@ -169,32 +169,6 @@ function wirePermissions() {
   session.defaultSession.setPermissionCheckHandler((_wc, perm, origin) => isApp(origin) && ok.includes(perm));
 }
 
-/* ---------- Update-Check (klassentakt.ch/app/version.json) ---------- */
-const newer = (a, b) => {
-  const pa = String(a).split('.').map(Number), pb = String(b).split('.').map(Number);
-  for (let i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0); }
-  return false;
-};
-async function checkUpdate(manual) {
-  try {
-    const res = await net.fetch(UPDATE_URL + '?t=' + Date.now(), { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const info = (await res.json()).mac || {};
-    if (info.version && newer(info.version, app.getVersion())) {
-      const { response } = await dialog.showMessageBox(win, {
-        type: 'info', buttons: ['Herunterladen', 'Später'], defaultId: 0, cancelId: 1,
-        message: `Klassentakt ${info.version} ist da`,
-        detail: (info.notes ? info.notes + '\n\n' : '') + `Installiert ist ${app.getVersion()}.`,
-      });
-      if (response === 0 && info.url) shell.openExternal(info.url);
-    } else if (manual) {
-      dialog.showMessageBox(win, { type: 'info', message: 'Klassentakt ist aktuell', detail: `Version ${app.getVersion()}` });
-    }
-  } catch (e) {
-    if (manual) dialog.showMessageBox(win, { type: 'warning', message: 'Update-Prüfung nicht möglich', detail: 'Bitte später nochmals versuchen.' });
-  }
-}
-
 /* ---------- Beamer-Menü (wird bei jeder Änderung neu aufgebaut) ---------- */
 function beamerMenu() {
   const s = beamer.state();
@@ -243,7 +217,7 @@ function buildMenu() {
       label: 'Klassentakt',
       submenu: [
         { role: 'about', label: 'Über Klassentakt' },
-        { label: 'Nach Updates suchen …', click: () => checkUpdate(true) },
+        { label: 'Nach Updates suchen …', click: () => updater.check(true) },
         { type: 'separator' },
         { role: 'services', label: 'Dienste' },
         { type: 'separator' },
@@ -305,12 +279,14 @@ app.on('second-instance', (_e, argv) => {
 app.whenReady().then(() => {
   app.setAboutPanelOptions({ applicationName: 'Klassentakt', applicationVersion: app.getVersion(), copyright: '© 2026 Florian Winberger', website: START_URL });
   wirePermissions();
+  updater.init(() => win);
   beamer.init(() => { buildMenu(); broadcastBeamer(); });
   wireBridge();
   buildMenu();
   createWindow();
   if (pendingLink) { handleDeepLink(pendingLink); pendingLink = null; }
-  setTimeout(() => checkUpdate(false), 8000);
+  setTimeout(() => updater.check(false), 8000);
+  setInterval(() => updater.check(false), 6 * 60 * 60 * 1000); // App läuft oft tagelang
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
