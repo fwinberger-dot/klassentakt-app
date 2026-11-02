@@ -40,6 +40,13 @@ jobs:
             unset CSC_LINK CSC_KEY_PASSWORD
             CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist:mac
           fi
+      - name: Signatur und Apple-Prüfung kontrollieren
+        run: |
+          APP=$(ls -d dist/mac-universal/*.app | head -1)
+          codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority|TeamIdentifier|Runtime" || true
+          spctl -a -vvv -t exec "$APP" 2>&1 || true
+          DMG=$(ls dist/Klassentakt-*[0-9].dmg | head -1)
+          xcrun stapler validate "$APP" || true
       - name: Fester Download-Name (immer neuste Version)
         run: cp dist/Klassentakt-*[0-9].dmg dist/Klassentakt-mac.dmg
       - uses: actions/upload-artifact@v4

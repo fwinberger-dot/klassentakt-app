@@ -1,2 +1,2 @@
-- Google-Anmeldung: kein zweites Fenster mehr, klare Info statt Sackgasse
-- Schöneres Update-Fenster mit Fortschrittsbalken
+- Von Apple geprüft und signiert: Die App öffnet sich ohne Warnung
+- Beamer-Knöpfe im Classroom Screen (unter «Ansicht»)
