@@ -14,6 +14,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     private let toastLabel = PaddingLabel()
     private var authSession: ASWebAuthenticationSession?
     private var popup: UIViewController?
+    private var appleLogin: AppleLogin?
     /// Streifen hinter der Statusleiste (Uhr, Akku): nimmt die Farbe der Kopfzeile der Seite an.
     private let topBar = UIView()
     private var topIsDark = false
@@ -168,6 +169,13 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         guard let scheme = url?.scheme?.lowercased() else { decisionHandler(.allow); return }
         if scheme == "about" || scheme == "file" || scheme == "blob" || scheme == "data" { decisionHandler(.allow); return }
         if scheme == "klassentakt", let url = url { decisionHandler(.cancel); handleDeepLink(url); return }
+        if AppleLogin.isStart(url) {
+            decisionHandler(.cancel)
+            closePopup()
+            appleLogin = AppleLogin(webView: webView, anchor: view.window)
+            appleLogin?.start(from: url)
+            return
+        }
         if Self.isGoogleStart(url) || Self.isGoogleAuth(url) {
             decisionHandler(.cancel)
             closePopup()

@@ -11,7 +11,7 @@ const START_URL = 'https://klassentakt.ch/';
 const APP_HOSTS = ['klassentakt.ch'];
 // Login-Anbieter dürfen im App-Fenster laufen. Google NICHT: Google blockiert
 // Logins in App-Fenstern («Browser nicht sicher»), darum läuft Google im Systembrowser.
-const LOGIN_HOSTS = ['jobnavigator.ch', 'login.microsoftonline.com', 'login.live.com', 'login.microsoft.com'];
+const LOGIN_HOSTS = ['jobnavigator.ch', 'appleid.apple.com', 'login.microsoftonline.com', 'login.live.com', 'login.microsoft.com'];
 const PROTOCOL = 'klassentakt';
 // Anbieter, deren Login im Systembrowser läuft und per klassentakt://auth?code=… zurückkommt.
 const EXTERNAL_LOGIN = ['google'];
