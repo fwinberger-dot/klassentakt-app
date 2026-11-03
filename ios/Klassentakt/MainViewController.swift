@@ -14,6 +14,9 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     private let toastLabel = PaddingLabel()
     private var authSession: ASWebAuthenticationSession?
     private var popup: UIViewController?
+    /// Streifen hinter der Statusleiste (Uhr, Akku): nimmt die Farbe der Kopfzeile der Seite an.
+    private let topBar = UIView()
+    private var topIsDark = false
 
     // MARK: Aufbau
 
@@ -29,15 +32,34 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
         config.applicationNameForUserAgent = "KlassentaktApp/\(Self.appVersion)"
         config.userContentController.addUserScript(Self.bridgeScript())
+        config.userContentController.addUserScript(Self.topColorScript())
+        config.userContentController.add(WeakScriptHandler(self), name: "ktTop")
+
+        topBar.backgroundColor = .white
+        topBar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(topBar)
 
         webView = WKWebView(frame: view.bounds, configuration: config)
-        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
-        webView.scrollView.contentInsetAdjustmentBehavior = .automatic
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.underPageBackgroundColor = .white
+        webView.isOpaque = false
+        webView.backgroundColor = .white
         if #available(iOS 16.4, *) { webView.isInspectable = true }
         view.addSubview(webView)
+        NSLayoutConstraint.activate([
+            topBar.topAnchor.constraint(equalTo: view.topAnchor),
+            topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            topBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topBar.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+        ])
 
         toastLabel.alpha = 0
         toastLabel.textColor = .white
@@ -71,6 +93,48 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         """
         return WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true)
     }
+
+    /// Meldet die Hintergrundfarbe ganz oben auf der Seite (Kopfzeile) an die App –
+    /// beim Laden, Scrollen, Drehen und Wechsel des Designs (hell/dunkel/Theme).
+    static func topColorScript() -> WKUserScript {
+        let js = """
+        (function(){
+          var last = '';
+          function bg(el){ while (el && el !== document.documentElement) { var c = getComputedStyle(el).backgroundColor; if (c && c !== 'transparent' && !/rgba\\(.*,\\s*0\\)$/.test(c)) return c; el = el.parentElement; }
+            var b = getComputedStyle(document.body || document.documentElement).backgroundColor; return b || 'rgb(255,255,255)'; }
+          function report(){ try { var el = document.elementFromPoint(Math.max(1, innerWidth / 2), 1); var c = bg(el);
+            if (c !== last) { last = c; window.webkit.messageHandlers.ktTop.postMessage(c); } } catch(e){} }
+          var t = 0; function soon(){ clearTimeout(t); t = setTimeout(report, 60); }
+          addEventListener('load', report); addEventListener('resize', soon); addEventListener('scroll', soon, { passive: true, capture: true });
+          document.addEventListener('DOMContentLoaded', function(){
+            report();
+            try { new MutationObserver(soon).observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'data-theme', 'style'] }); } catch(e){}
+          });
+          setInterval(report, 1500);
+        })();
+        """
+        return WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+    }
+
+    /// «rgb(255, 255, 255)» / «rgba(…)» → UIColor
+    static func color(fromCSS css: String) -> UIColor? {
+        let nums = css.components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted).filter { !$0.isEmpty }.compactMap(Double.init)
+        guard nums.count >= 3 else { return nil }
+        let a = nums.count >= 4 ? nums[3] : 1
+        if a < 0.5 { return nil }
+        return UIColor(red: nums[0] / 255, green: nums[1] / 255, blue: nums[2] / 255, alpha: 1)
+    }
+
+    func setTopColor(_ c: UIColor) {
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        c.getRed(&r, green: &g, blue: &b, alpha: &a)
+        let dark = (0.299 * r + 0.587 * g + 0.114 * b) < 0.5
+        UIView.animate(withDuration: 0.15) { self.topBar.backgroundColor = c }
+        webView.underPageBackgroundColor = c
+        if dark != topIsDark { topIsDark = dark; setNeedsStatusBarAppearanceUpdate() }
+    }
+
+    override var preferredStatusBarStyle: UIStatusBarStyle { topIsDark ? .lightContent : .darkContent }
 
     // MARK: Hilfen
 
@@ -269,5 +333,15 @@ final class PaddingLabel: UILabel {
     override var intrinsicContentSize: CGSize {
         let s = super.intrinsicContentSize
         return CGSize(width: s.width + insets.left + insets.right, height: s.height + insets.top + insets.bottom)
+    }
+}
+
+/// Verhindert, dass der WKUserContentController den ViewController festhält.
+final class WeakScriptHandler: NSObject, WKScriptMessageHandler {
+    weak var target: MainViewController?
+    init(_ t: MainViewController) { target = t }
+    func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
+        guard m.name == "ktTop", let css = m.body as? String, let col = MainViewController.color(fromCSS: css) else { return }
+        DispatchQueue.main.async { self.target?.setTopColor(col) }
     }
 }
