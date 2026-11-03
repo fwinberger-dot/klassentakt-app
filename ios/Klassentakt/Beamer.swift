@@ -91,7 +91,7 @@ final class BeamerViewController: UIViewController {
     }
 }
 
-/// Screen auf dem iPad selbst (kein Beamer angeschlossen).
+/// Screen auf dem iPad selbst (kein Beamer angeschlossen). Geschlossen wird über das ✕ des Screens.
 final class ScreenViewController: UIViewController {
     private let webView: WKWebView
     init(webView: WKWebView) { self.webView = webView; super.init(nibName: nil, bundle: nil) }
@@ -108,19 +108,6 @@ final class ScreenViewController: UIViewController {
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(webView)
 
-        var cfg = UIButton.Configuration.filled()
-        cfg.title = "Schliessen"
-        cfg.image = UIImage(systemName: "xmark")
-        cfg.imagePadding = 6
-        cfg.cornerStyle = .capsule
-        cfg.baseBackgroundColor = UIColor(white: 0, alpha: 0.45)
-        cfg.baseForegroundColor = .white
-        let close = UIButton(configuration: cfg, primaryAction: UIAction { _ in Beamer.shared.close() })
-        close.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(close)
-        NSLayoutConstraint.activate([
-            close.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
-            close.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -14),
-        ])
+        // Kein eigener Schliessen-Knopf: Der Screen hat sein eigenes ✕ (ruft window.close → webViewDidClose).
     }
 }
