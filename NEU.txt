@@ -1,2 +1,0 @@
-- Von Apple geprüft und signiert: Die App öffnet sich ohne Warnung
-- Beamer-Knöpfe im Classroom Screen (unter «Ansicht»)

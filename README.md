@@ -20,3 +20,13 @@ Die App liest `https://klassentakt.ch/app/version.json`:
 
 ## Brücke
 In der Hülle gibt es `window.klassentaktShell` (`isShell`, `platform`, `shellVersion`, `features`). Die Web-App blendet App-Funktionen nur ein, wenn es existiert.
+
+## Update-Text («Was ist neu»)
+Standard: kein Text im Update-Fenster. Soll eine neue Funktion angepriesen werden, in NEU.txt schreiben:
+
+```
+Version 0.4.1
+- Neue Funktion XY
+```
+
+Die erste Zeile muss genau zur Version in package.json passen, sonst wird nichts angezeigt.

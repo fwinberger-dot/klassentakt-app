@@ -72,7 +72,7 @@ jobs:
         with:
           tag_name: v${{ steps.ver.outputs.v }}
           name: Klassentakt ${{ steps.ver.outputs.v }}
-          body_path: NEU.txt
+          body_path: dist/release-notes.md
           target_commitish: ${{ github.sha }}
           make_latest: 'true'
           files: |
