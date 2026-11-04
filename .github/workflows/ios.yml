@@ -5,10 +5,14 @@ on:
     branches: [main]
     paths: ['ios/**', '.github/workflows/ios.yml']
   workflow_dispatch:
+    inputs:
+      runner:
+        description: 'macOS-Runner (bei Engpass auf arm64 z. B. macos-15-intel)'
+        default: macos-latest
 
 jobs:
   ios:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
     steps:
       - uses: actions/checkout@v4
       - name: Xcode-Projekt erzeugen

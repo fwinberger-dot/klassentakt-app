@@ -4,6 +4,10 @@ name: Klassentakt-shots-paketA
 # Die App läuft im UI-Test-Modus (-ktUITest, nur Debug): Test-Arbeitsblatt statt Kamera, Beamer als Vorschau.
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: 'macOS-Runner (bei Engpass auf arm64 z. B. macos-15-intel)'
+        default: macos-latest
   # Neue Workflows lassen sich erst von Hand starten, wenn sie auf main liegen → auch beim Push auf den Paket-A-Branch.
   push:
     branches: ['claude/ipad-paket-a-*']
@@ -11,7 +15,7 @@ on:
 
 jobs:
   shots:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-15-intel' }}
     steps:
       - uses: actions/checkout@v4
       - name: Xcode-Projekt erzeugen
