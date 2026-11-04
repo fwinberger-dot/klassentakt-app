@@ -174,7 +174,7 @@ final class BeamerHint: UIView {
         v.addSubview(self)
         NSLayoutConstraint.activate([
             centerXAnchor.constraint(equalTo: v.centerXAnchor),
-            bottomAnchor.constraint(equalTo: v.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+            bottomAnchor.constraint(equalTo: v.safeAreaLayoutGuide.bottomAnchor, constant: -84),
         ])
         UIView.animate(withDuration: 0.25) { self.alpha = 1 }
         let w = DispatchWorkItem { [weak self] in self?.hide() }

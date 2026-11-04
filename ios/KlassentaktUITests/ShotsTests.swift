@@ -45,8 +45,8 @@ final class ShotsTests: XCTestCase {
         pause()
         shot("4-kuerzel-1-uebersicht")
         app.terminate()
-        launch(["-ktBeamerPreview", "-ktRun", "tool-timer"])
-        pause(1.5)
+        launch(["-ktRun", "tool-timer"])
+        pause(0.8)
         shot("4-kuerzel-2-timer-ohne-screen")
     }
 
@@ -90,7 +90,7 @@ final class ShotsTests: XCTestCase {
         shot("2-beamer-2-screen-auf-beamer")
         app.terminate()
         launch(["-ktBeamerPreview", "-ktRun", "web-open-camera"])
-        XCTAssertTrue(app.otherElements["camPreview"].waitForExistence(timeout: 12))
+        XCTAssertTrue(app.otherElements["camPreview"].waitForExistence(timeout: 30))
         pause(2)
         shot("2-beamer-3-kamera-aus-werkzeugkoffer")
         tap(app.buttons["camClose"])

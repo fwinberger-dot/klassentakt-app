@@ -167,9 +167,20 @@ extension MainViewController {
             case "demo-export": if let u = TestMode.demoPDF() { self.offer(u) }
             case "demo-ics": if let u = TestMode.demoICS() { self.offer(u) }
             // Wie das Werkzeug «Dokumentenkamera» im Werkzeugkoffer: Nachricht über die echte Brücke.
-            case "web-open-camera":
-                self.webView.evaluateJavaScript("window.klassentaktShell && klassentaktShell.send('open-camera', {ref: 'test-lektion'})", completionHandler: nil)
+            case "web-open-camera": self.testSendOpenCamera(tries: 20)
             default: if let c = ShellCommand(rawValue: r) { self.run(c) }
+            }
+        }
+    }
+}
+
+extension MainViewController {
+    /// Wartet, bis die Seite geladen ist und die Brücke hat, dann `open-camera` wie aus dem Werkzeugkoffer.
+    func testSendOpenCamera(tries: Int) {
+        let js = "(function(){ if (!window.klassentaktShell || document.readyState !== 'complete') return false; klassentaktShell.send('open-camera', {ref: 'test-lektion'}); return true; })()"
+        webView.evaluateJavaScript(js) { [weak self] r, _ in
+            if (r as? Bool) != true, tries > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.testSendOpenCamera(tries: tries - 1) }
             }
         }
     }
