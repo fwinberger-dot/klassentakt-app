@@ -14,59 +14,23 @@ final class Beamer {
     private(set) var isExternalConnected = false
     weak var host: MainViewController?
     private var modal: ScreenViewController?
-    private(set) var isBlack = false
-    private var blackCover: BlackCoverViewController?
 
+    /// Bild der Dokumentenkamera auf dem Beamer (über dem Screen). nil = Kamera zu.
     private(set) var cameraView: UIView?
-    let layer = BeamerLayer()
-    /// Beamer kam, bevor das Hauptfenster bereit war → Auswahl beim nächsten viewDidAppear.
-    var pendingPrompt = false
+    /// Beamer kam, bevor das Hauptfenster bereit war → Hinweis beim nächsten viewDidAppear.
+    var pendingHint = false
 
     var stateForWeb: [String: Any] {
-        var s: [String: Any] = ["open": screenWebView != nil, "extern": isExternalConnected, "black": isBlack, "camera": cameraView != nil]
-        layer.stateForWeb.forEach { s[$0.key] = $0.value }
-        return s
+        ["open": screenWebView != nil, "extern": isExternalConnected, "camera": cameraView != nil]
     }
 
-    /// Timer/Ampel/«schwarz» geändert → Beamer, Knopf auf dem iPad, Fernbedienung, Web-App.
-    func layerChanged() {
-        externalController.showLayer(layer, extern: isExternalConnected)
-        host?.beamerPill?.refresh()
-        NotificationCenter.default.post(name: .beamerLayerChanged, object: nil)
-        if let h = host, h.shell.isListening("beamer") { h.shell.emit("beamer", stateForWeb) }
-    }
-
-    /// Dokumentenkamera auf den Beamer (über den Screen, unter «schwarz»). nil = wieder weg.
+    /// Dokumentenkamera auf den Beamer. nil = wieder der Screen.
     func showCamera(_ v: UIView?) {
+        let changed = (cameraView == nil) != (v == nil)
         cameraView = v
         externalController.setCamera(v)
         host?.beamerChanged()
-    }
-
-    /// «Bildschirm schwarz»: auf dem Beamer; ohne Beamer (oder bei Bildschirm-Synchronisierung) auf dem iPad.
-    func toggleBlack() { setBlack(!isBlack) }
-
-    func setBlack(_ on: Bool) {
-        isBlack = on
-        externalController.setBlack(on && isExternalConnected)
-        if on && !isExternalConnected, blackCover == nil, let host = host {
-            let c = BlackCoverViewController { [weak self] in self?.setBlack(false) }
-            blackCover = c
-            var top: UIViewController = host
-            while let p = top.presentedViewController { top = p }
-            top.present(c, animated: true)
-        } else if !on || isExternalConnected, let c = blackCover {
-            blackCover = nil
-            c.dismiss(animated: true)
-        }
-        if isExternalConnected { host?.toast(on ? "Beamer schwarz – ⌘⇧D zeigt wieder" : "Beamer zeigt wieder") }
-        layerChanged()
-    }
-
-    func toggleTimer() {
-        layer.toggleTimer()
-        let st = layer.timer.state()
-        host?.toast(st == .running ? "Timer läuft (\(BeamerTimer.format(layer.timer.remaining())))" : st == .paused ? "Timer angehalten" : "Timer")
+        if changed { host?.shell.emit("camera", ["open": v != nil]) }
     }
 
     /// Neues Screen-Fenster der Web-App übernehmen.
@@ -74,6 +38,7 @@ final class Beamer {
         close()
         screenWebView = webView
         place()
+        if isExternalConnected { host?.toast("Classroom Screen läuft auf dem Beamer") }
         UIApplication.shared.isIdleTimerDisabled = true
         host?.beamerChanged()
     }
@@ -91,17 +56,15 @@ final class Beamer {
     func externalConnected(_ connected: Bool) {
         let wasConnected = isExternalConnected
         isExternalConnected = connected
-        if isBlack { setBlack(true) }
-        layerChanged()
-        if connected && !wasConnected {
-            if let h = host, h.view.window != nil {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { h.beamerConnectedPrompt() }
-            } else {
-                pendingPrompt = true
-            }
-        }
         place()
         host?.beamerChanged()
+        if connected && !wasConnected {
+            if let h = host, h.view.window != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { h.beamerConnectedHint() }
+            } else {
+                pendingHint = true
+            }
+        }
     }
 
     /// Screen dorthin setzen, wo er hingehört (Beamer oder iPad-Vollbild).
@@ -110,7 +73,6 @@ final class Beamer {
         if isExternalConnected {
             if let m = modal { modal = nil; m.dismiss(animated: true) }
             externalController.setScreen(wv)
-            host?.toast("Classroom Screen läuft auf dem Beamer")
         } else {
             externalController.setScreen(nil)
             guard modal == nil, let host = host else { return }
@@ -122,18 +84,16 @@ final class Beamer {
     }
 }
 
-/// Inhalt des externen Bildschirms.
+/// Inhalt des externen Bildschirms: Classroom Screen der Web-App, darüber bei Bedarf die Dokumentenkamera.
+/// Ohne Screen eine ruhige Platzhalterseite – der Planer wird nie gespiegelt.
 final class BeamerViewController: UIViewController {
     private let placeholder = UILabel()
-    private let black = UIView()
     private weak var camera: UIView?
-    private let timerBadge = TimerBadge()
-    private let quietLight = QuietLight()
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 0.063, green: 0.133, blue: 0.114, alpha: 1) // #10221d wie der Screen
-        placeholder.text = "Klassentakt\n\nÖffne den Classroom Screen auf dem iPad."
+        placeholder.text = "Klassentakt\n\nClassroom Screen auf dem iPad öffnen."
         placeholder.numberOfLines = 0
         placeholder.textAlignment = .center
         placeholder.textColor = UIColor(white: 1, alpha: 0.75)
@@ -145,35 +105,6 @@ final class BeamerViewController: UIViewController {
             placeholder.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             placeholder.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.8),
         ])
-        for v in [timerBadge, quietLight] as [UIView] {
-            v.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(v)
-        }
-        NSLayoutConstraint.activate([
-            timerBadge.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 32),
-            timerBadge.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -32),
-            quietLight.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -32),
-            quietLight.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -32),
-        ])
-        black.backgroundColor = .black
-        black.isHidden = true
-        black.frame = view.bounds
-        black.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(black)
-    }
-
-    func showLayer(_ l: BeamerLayer, extern: Bool) {
-        loadViewIfNeeded()
-        timerBadge.show(l.timer)
-        quietLight.show(l.quietOn, l.quiet.level)
-    }
-
-    /// Ebenen von unten nach oben: Screen, Kamera, Timer/Ampel, schwarz.
-    private func restack() {
-        if let c = camera { view.bringSubviewToFront(c) }
-        view.bringSubviewToFront(timerBadge)
-        view.bringSubviewToFront(quietLight)
-        view.bringSubviewToFront(black)
     }
 
     func setCamera(_ v: UIView?) {
@@ -184,14 +115,6 @@ final class BeamerViewController: UIViewController {
         v.frame = view.bounds
         v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(v)
-        restack()
-    }
-
-    func setBlack(_ on: Bool) {
-        loadViewIfNeeded()
-        view.bringSubviewToFront(black)
-        UIView.animate(withDuration: 0.25) { self.black.alpha = on ? 1 : 0 } completion: { _ in self.black.isHidden = !on }
-        if on { black.isHidden = false }
     }
 
     func setScreen(_ webView: WKWebView?) {
@@ -203,25 +126,78 @@ final class BeamerViewController: UIViewController {
         wv.frame = view.bounds
         wv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(wv)
-        restack()
+        if let c = camera { view.bringSubviewToFront(c) }
     }
 }
 
-/// Schwarzer Vorhang auf dem iPad selbst (kein Beamer erweitert). Tippen beendet ihn.
-final class BlackCoverViewController: UIViewController {
-    private let onEnd: () -> Void
-    init(onEnd: @escaping () -> Void) { self.onEnd = onEnd; super.init(nibName: nil, bundle: nil); modalPresentationStyle = .overFullScreen; modalTransitionStyle = .crossDissolve }
-    required init?(coder: NSCoder) { fatalError() }
-    override var prefersStatusBarHidden: Bool { true }
-    override var prefersHomeIndicatorAutoHidden: Bool { true }
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .black
-        view.accessibilityLabel = "Bildschirm schwarz. Tippen zum Beenden."
-        view.isAccessibilityElement = true
-        view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(end)))
+/// Hinweis beim Verbinden: blockiert nichts und verschwindet von selbst.
+final class BeamerHint: UIView {
+    let label = UILabel()
+    let button = UIButton(type: .system)
+    private var hideWork: DispatchWorkItem?
+
+    init(text: String, action: String?, onAction: @escaping () -> Void) {
+        super.init(frame: .zero)
+        accessibilityIdentifier = "beamerHint"
+        backgroundColor = UIColor(white: 0.1, alpha: 0.9)
+        layer.cornerRadius = 22
+        label.text = text
+        label.textColor = .white
+        label.font = .systemFont(ofSize: 15, weight: .semibold)
+        var c = UIButton.Configuration.filled()
+        c.title = action
+        c.cornerStyle = .capsule
+        c.baseBackgroundColor = .white
+        c.baseForegroundColor = .black
+        button.configuration = c
+        button.accessibilityIdentifier = "beamerHintOpen"
+        button.isHidden = action == nil
+        button.addAction(UIAction { [weak self] _ in onAction(); self?.hide() }, for: .touchUpInside)
+        let row = UIStackView(arrangedSubviews: [label, button])
+        row.spacing = 14
+        row.alignment = .center
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            row.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            row.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            row.trailingAnchor.constraint(equalTo: trailingAnchor, constant: action == nil ? -20 : -8),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+        ])
     }
-    @objc private func end() { onEnd() }
+    required init?(coder: NSCoder) { fatalError() }
+
+    func show(in v: UIView, seconds: TimeInterval) {
+        translatesAutoresizingMaskIntoConstraints = false
+        alpha = 0
+        v.addSubview(self)
+        NSLayoutConstraint.activate([
+            centerXAnchor.constraint(equalTo: v.centerXAnchor),
+            bottomAnchor.constraint(equalTo: v.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+        ])
+        UIView.animate(withDuration: 0.25) { self.alpha = 1 }
+        let w = DispatchWorkItem { [weak self] in self?.hide() }
+        hideWork = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds, execute: w)
+    }
+
+    func hide() {
+        hideWork?.cancel()
+        UIView.animate(withDuration: 0.3, animations: { self.alpha = 0 }) { _ in self.removeFromSuperview() }
+    }
+}
+
+extension MainViewController {
+    /// Beamer verbunden: kurzer Hinweis statt Auswahl. Ohne offenen Screen mit Knopf «Classroom Screen öffnen».
+    func beamerConnectedHint() {
+        guard view.window != nil else { return }
+        view.subviews.compactMap { $0 as? BeamerHint }.forEach { $0.removeFromSuperview() }
+        let open = Beamer.shared.screenWebView != nil
+        let h = BeamerHint(text: open ? "Beamer verbunden – zeigt den Classroom Screen" : "Beamer verbunden",
+                           action: open ? nil : "Classroom Screen öffnen") { [weak self] in self?.openScreen() }
+        h.show(in: view, seconds: open ? 3 : 8)
+    }
 }
 
 /// Screen auf dem iPad selbst (kein Beamer angeschlossen). Geschlossen wird über das ✕ des Screens.

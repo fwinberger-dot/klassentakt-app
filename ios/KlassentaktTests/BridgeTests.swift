@@ -2,6 +2,25 @@ import XCTest
 @testable import Klassentakt
 
 final class BridgeTests: XCTestCase {
+    func testFeaturesFollowTheDevice() {
+        XCTAssertFalse(Shell.features(camera: true, scan: true).contains("beamer-layer"))
+        XCTAssertTrue(Shell.features(camera: true, scan: true).contains("camera"))
+        XCTAssertFalse(Shell.features(camera: false, scan: true).contains("camera"))
+        XCTAssertFalse(Shell.features(camera: true, scan: false).contains("scan"))
+        XCTAssertTrue(Shell.features(camera: false, scan: false).contains("files"))
+    }
+
+    func testRefIsShortenedAndOptional() {
+        XCTAssertNil(MainViewController.ref([:]))
+        XCTAssertNil(MainViewController.ref(["ref": ""]))
+        XCTAssertEqual(MainViewController.ref(["ref": "lektion-42"]), "lektion-42")
+        XCTAssertEqual(MainViewController.ref(["ref": String(repeating: "x", count: 500)])?.count, 200)
+    }
+
+    func testFileScriptPassesRef() {
+        XCTAssertTrue(Shell.script(version: "1").source.contains("ref: meta.ref"))
+    }
+
     func testParseValid() {
         let m = Shell.parse(["type": "send", "name": "scan", "payload": ["format": "pdf"]])
         XCTAssertEqual(m?.kind, .send)

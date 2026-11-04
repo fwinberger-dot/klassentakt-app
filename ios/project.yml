@@ -38,7 +38,7 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSMicrophoneUsageDescription: Klassentakt misst mit dem Mikrofon die Lautstärke im Zimmer (Ruhe-Ampel und Ruhe-Timer). Es wird nichts aufgenommen oder gespeichert.
+        NSMicrophoneUsageDescription: Das Werkzeug «Ruhe» im Classroom Screen misst mit dem Mikrofon die Lautstärke im Zimmer. Es wird nichts aufgenommen oder gespeichert.
         NSPhotoLibraryAddUsageDescription: Klassentakt sichert Scans und Fotos der Dokumentenkamera in deinen Fotos, wenn du das im Teilen-Menü wählst.
         LSSupportsOpeningDocumentsInPlace: false
         CFBundleDocumentTypes:

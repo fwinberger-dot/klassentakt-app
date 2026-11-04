@@ -28,9 +28,9 @@ struct OutFile {
 extension MainViewController {
     /// Dateien an die Web-App (Ereignis `file`). Kann die Web-App das noch nicht,
     /// bleibt nichts verloren: Vorschau mit Teilen-Menü (Dateien, AirDrop, Fotos, Drucken).
-    func deliver(_ files: [OutFile], source: String) {
+    func deliver(_ files: [OutFile], source: String, ref: String? = nil) {
         guard !files.isEmpty else { return }
-        let taken = files.map { shell.sendFile($0.data, name: $0.name, type: $0.type, source: source) }
+        let taken = files.map { shell.sendFile($0.data, name: $0.name, type: $0.type, source: source, ref: ref) }
         if taken.allSatisfy({ $0 }) {
             toast(files.count == 1 ? "An Klassentakt übergeben" : "\(files.count) Dateien an Klassentakt übergeben")
             return

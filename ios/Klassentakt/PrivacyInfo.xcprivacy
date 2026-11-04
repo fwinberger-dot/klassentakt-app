@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Datenschutz-Manifest. Muss zu den Angaben «App Privacy» in App Store Connect passen:
      E-Mail und Name (Konto), Fotos (Scans/Kamera, nur wenn in eine Lektion übernommen), andere Benutzerinhalte (Planungen).
-     Alles mit Identität verknüpft, nur für die App-Funktion, kein Tracking. Mikrofon: nur Pegel, verlässt das Gerät nicht.
-     UserDefaults: eigene Einstellungen (Timer-Dauer, Empfindlichkeit der Ruhe-Ampel). -->
+     Alles mit Identität verknüpft, nur für die App-Funktion, kein Tracking. Mikrofon: nur das Werkzeug «Ruhe» der Web-App (Pegel im Browser), verlässt das Gerät nicht.
+     Die App selbst nutzt keine UserDefaults mehr (seit Fassung 2 ohne eigene Beamer-Ebene). -->
 <plist version="1.0">
 <dict>
 	<key>NSPrivacyTracking</key>
@@ -62,15 +62,6 @@
 		</dict>
 	</array>
 	<key>NSPrivacyAccessedAPITypes</key>
-	<array>
-		<dict>
-			<key>NSPrivacyAccessedAPIType</key>
-			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
-			<key>NSPrivacyAccessedAPITypeReasons</key>
-			<array>
-				<string>CA92.1</string>
-			</array>
-		</dict>
-	</array>
+	<array/>
 </dict>
 </plist>

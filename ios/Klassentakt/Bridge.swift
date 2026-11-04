@@ -1,5 +1,7 @@
 import UIKit
 import WebKit
+import AVFoundation
+import VisionKit
 
 /// Brücke zur Web-App: `window.klassentaktShell` (Vertrag in docs/Bruecke-PaketA.md).
 /// - Web → App: `klassentaktShell.send(name, payload)` und die Helfer `share`, `print`.
@@ -8,7 +10,15 @@ import WebKit
 final class Shell: NSObject, WKScriptMessageHandler {
     static let handlerName = "kt"
     /// Was die App kann. Die Web-App darf ihre Knöpfe danach ein- und ausblenden.
-    static let features = ["beamer-extern", "shortcuts", "scan", "camera", "beamer-layer", "share", "print", "files"]
+    /// `camera` und `scan` nur, wenn das Gerät es kann (Rückkamera bzw. VisionKit-Scanner).
+    static func features(camera: Bool, scan: Bool) -> [String] {
+        ["beamer-extern", "shortcuts"] + (scan ? ["scan"] : []) + (camera ? ["camera"] : []) + ["share", "print", "files"]
+    }
+
+    static var features: [String] {
+        features(camera: TestMode.on || AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) != nil,
+                 scan: TestMode.on || VNDocumentCameraViewController.isSupported)
+    }
 
     /// Nachrichten der Web-App (Name, Nutzlast, absendendes WebView).
     var onSend: ((String, [String: Any], WKWebView?) -> Void)?
@@ -43,7 +53,7 @@ final class Shell: NSObject, WKScriptMessageHandler {
             var bin = atob(p.join('')), u8 = new Uint8Array(bin.length);
             for (var k = 0; k < bin.length; k++) u8[k] = bin.charCodeAt(k);
             var f; try { f = new File([u8], meta.name, { type: meta.type }); } catch(e){ f = new Blob([u8], { type: meta.type }); f.name = meta.name; }
-            emit('file', { source: meta.source, name: meta.name, type: meta.type, size: u8.length, file: f });
+            emit('file', { source: meta.source, ref: meta.ref, name: meta.name, type: meta.type, size: u8.length, file: f });
           }
           function b64(blob){ return new Promise(function(res, rej){ var r = new FileReader(); r.onload = function(){ res(String(r.result).split(',')[1] || ''); }; r.onerror = rej; r.readAsDataURL(blob); }); }
           function withData(type, o){ o = o || {};
@@ -131,11 +141,12 @@ final class Shell: NSObject, WKScriptMessageHandler {
 
     /// Datei an die Web-App (Ereignis `file`, kommt dort als File an). false = niemand hört zu.
     @discardableResult
-    func sendFile(_ data: Data, name: String, type: String, source: String) -> Bool {
+    func sendFile(_ data: Data, name: String, type: String, source: String, ref: String? = nil) -> Bool {
         let targets = listeners["file"]?.compactMap { $0.value } ?? []
         guard !targets.isEmpty else { return false }
         let id = UUID().uuidString
-        let meta: [String: Any] = ["name": name, "type": type, "source": source]
+        var meta: [String: Any] = ["name": name, "type": type, "source": source]
+        if let r = ref { meta["ref"] = r }
         let chunks = Self.chunks(data.base64EncodedString())
         guard let m = try? JSONSerialization.data(withJSONObject: meta), let ms = String(data: m, encoding: .utf8) else { return false }
         for wv in targets {

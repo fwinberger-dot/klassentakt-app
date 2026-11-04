@@ -31,6 +31,15 @@ final class ShortcutTests: XCTestCase {
         XCTAssertTrue(MainViewController.keyJS("ArrowLeft").contains("'ArrowLeft'"))
     }
 
+    func testToolsGoToTheWebToolbox() {
+        XCTAssertEqual(ShellCommand.timerToggle.tool, "timer")
+        XCTAssertEqual(ShellCommand.quietToggle.tool, "ruhe")
+        XCTAssertNil(ShellCommand.camera.tool)
+        // Keine eigenen nativen Werkzeuge mehr (Fassung 2): kein «schwarz», keine Fernbedienung.
+        XCTAssertNil(ShellCommand(rawValue: "black-toggle"))
+        XCTAssertNil(ShellCommand(rawValue: "beamer-panel"))
+    }
+
     func testCSSColor() {
         XCTAssertNotNil(MainViewController.color(fromCSS: "rgb(16, 34, 29)"))
         XCTAssertNil(MainViewController.color(fromCSS: "rgba(0, 0, 0, 0)"))

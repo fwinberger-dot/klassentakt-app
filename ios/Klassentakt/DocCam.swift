@@ -214,6 +214,10 @@ final class DocCamView: UIView {
 
 /// Dokumentenkamera auf dem iPad: Vorschau und Knöpfe. Das Bild läuft gleichzeitig auf dem Beamer.
 final class DocCamViewController: UIViewController {
+    /// Die offene Kamera (es gibt höchstens eine).
+    static weak var current: DocCamViewController?
+    /// `ref` der Web-App, kommt mit dem Foto zurück.
+    var ref: String?
     private let cam = DocCam.shared
     private let preview = DocCamView()
     private let beamerView = DocCamView()
@@ -230,6 +234,7 @@ final class DocCamViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        Self.current = self
         view.backgroundColor = .black
         preview.frame = view.bounds
         preview.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -352,7 +357,7 @@ final class DocCamViewController: UIViewController {
         UIView.animate(withDuration: 0.08, animations: { self.preview.alpha = 0.3 }) { _ in
             UIView.animate(withDuration: 0.2) { self.preview.alpha = 1 }
         }
-        host?.deliver([f], source: "camera")
+        host?.deliver([f], source: "camera", ref: ref)
     }
 
     @objc func close() {
@@ -361,6 +366,7 @@ final class DocCamViewController: UIViewController {
         cam.detach(beamerView)
         cam.onChange = nil
         Beamer.shared.showCamera(nil)
+        if Self.current === self { Self.current = nil }
         dismiss(animated: true)
     }
 
@@ -377,8 +383,9 @@ final class DocCamViewController: UIViewController {
 }
 
 extension MainViewController {
-    func openDocCam() {
-        if let open = topController() as? DocCamViewController { open.close(); return }
+    /// Kamera öffnen (Werkzeug der Web-App oder ⌘⇧K). Ist sie schon offen, schliesst ⌘⇧K sie.
+    func openDocCam(ref: String? = nil) {
+        if let open = DocCamViewController.current { open.close(); return }
         DocCam.requestAccess { [weak self] ok in
             guard let self = self else { return }
             guard ok else {
@@ -394,6 +401,7 @@ extension MainViewController {
             }
             let vc = DocCamViewController()
             vc.host = self
+            vc.ref = ref
             vc.modalPresentationStyle = .fullScreen
             self.topController().present(vc, animated: true)
         }

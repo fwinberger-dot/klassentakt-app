@@ -73,6 +73,8 @@ enum ScanFormat: String {
 final class ScanCoordinator: NSObject, VNDocumentCameraViewControllerDelegate {
     weak var host: MainViewController?
     var format: ScanFormat?
+    /// `ref` der Web-App, kommt mit dem Scan zurück.
+    var ref: String?
     private var keep: ScanCoordinator?
 
     init(host: MainViewController, format: ScanFormat?) { self.host = host; self.format = format }
@@ -118,7 +120,7 @@ final class ScanCoordinator: NSObject, VNDocumentCameraViewControllerDelegate {
         DispatchQueue.global(qos: .userInitiated).async {
             let files = ScanFormat.files(pages, as: format)
             DispatchQueue.main.async {
-                self.host?.deliver(files, source: "scan")
+                self.host?.deliver(files, source: "scan", ref: self.ref)
                 self.keep = nil
             }
         }
@@ -127,7 +129,9 @@ final class ScanCoordinator: NSObject, VNDocumentCameraViewControllerDelegate {
 
 extension MainViewController {
     /// Scanner öffnen. format nil = nach dem Scannen fragen.
-    func startScan(_ format: ScanFormat?) {
-        ScanCoordinator(host: self, format: format).start()
+    func startScan(_ format: ScanFormat?, ref: String? = nil) {
+        let c = ScanCoordinator(host: self, format: format)
+        c.ref = ref
+        c.start()
     }
 }

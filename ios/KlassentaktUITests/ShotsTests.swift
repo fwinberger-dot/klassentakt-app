@@ -45,9 +45,9 @@ final class ShotsTests: XCTestCase {
         pause()
         shot("4-kuerzel-1-uebersicht")
         app.terminate()
-        launch(["-ktBeamerPreview", "-ktRun", "black-toggle"])
-        pause(2)
-        shot("4-kuerzel-2-bildschirm-schwarz")
+        launch(["-ktBeamerPreview", "-ktRun", "tool-timer"])
+        pause(1.5)
+        shot("4-kuerzel-2-timer-ohne-screen")
     }
 
     // 3 – Scanner
@@ -80,23 +80,22 @@ final class ShotsTests: XCTestCase {
         shot("1-kamera-4-foto-uebernehmen")
     }
 
-    // 2 – Beamer-Ebene
+    // 2 – Beamer: zeigt den Classroom Screen, Kamera als Werkzeug der Web-App
     func test2Beamer() {
         launch(["-ktBeamerPreview"])
-        XCTAssertTrue(app.alerts["Beamer verbunden"].waitForExistence(timeout: 10))
-        pause()
-        shot("2-beamer-1-verbunden-auswahl")
-        tap(app.alerts.buttons["Später"])
-        tap(app.buttons["beamerPill"])
-        shot("2-beamer-2-fernbedienung")
-        tap(app.buttons["5 Minuten"])
-        tap(app.switches["quietSwitch"])
-        pause(6)
-        shot("2-beamer-3-timer-und-ampel")
-        tap(app.buttons["Bildschirm schwarz"])
-        pause()
-        shot("2-beamer-4-schwarz")
-        tap(app.buttons["Wieder zeigen"])
+        XCTAssertTrue(app.otherElements["beamerHint"].waitForExistence(timeout: 10))
+        shot("2-beamer-1-verbunden-hinweis")
+        tap(app.buttons["beamerHintOpen"])
+        pause(4)
+        shot("2-beamer-2-screen-auf-beamer")
+        app.terminate()
+        launch(["-ktBeamerPreview", "-ktRun", "web-open-camera"])
+        XCTAssertTrue(app.otherElements["camPreview"].waitForExistence(timeout: 12))
+        pause(2)
+        shot("2-beamer-3-kamera-aus-werkzeugkoffer")
+        tap(app.buttons["camClose"])
+        pause(1.5)
+        shot("2-beamer-4-zurueck-zum-screen")
     }
 
     // 5 – Teilen-Menü und Dateien

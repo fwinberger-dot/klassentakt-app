@@ -17,7 +17,6 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     private var popup: UIViewController?
     /// Streifen hinter der Statusleiste (Uhr, Akku): nimmt die Farbe der Kopfzeile der Seite an.
     private let topBar = UIView()
-    var beamerPill: BeamerPill?
     var pendingFiles: [(OutFile, String)] = []
     lazy var downloads = DownloadHandler(host: self)
     private var topIsDark = false
@@ -40,7 +39,10 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.userContentController.add(WeakScriptHandler(self), name: "ktTop")
         config.userContentController.add(shell, name: Shell.handlerName)
         shell.onSend = { [weak self] name, payload, wv in self?.handleShell(name, payload, from: wv) }
-        shell.onListen = { [weak self] name in if name == "file" { self?.flushPendingFiles() } }
+        shell.onListen = { [weak self] name in
+            if name == "file" { self?.flushPendingFiles() }
+            if name == "camera" { self?.shell.emit("camera", ["open": Beamer.shared.cameraView != nil]) }
+        }
 
         topBar.backgroundColor = .white
         topBar.translatesAutoresizingMaskIntoConstraints = false
@@ -81,9 +83,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
             toastLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
         ])
 
-        installBeamerPill()
         installDrop(on: view)
-        if let p = beamerPill { installDrop(on: p) }
         view.bringSubviewToFront(toastLabel)
         webView.load(URLRequest(url: Self.startURL))
     }
@@ -91,10 +91,9 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         if TestMode.on { startTestMode() }
-        Beamer.shared.layerChanged()
-        if Beamer.shared.pendingPrompt {
-            Beamer.shared.pendingPrompt = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.beamerConnectedPrompt() }
+        if Beamer.shared.pendingHint {
+            Beamer.shared.pendingHint = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.beamerConnectedHint() }
         }
     }
 
@@ -174,29 +173,29 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         switch name {
         case "command":
             if let id = payload["id"] as? String, let c = ShellCommand(rawValue: id) { run(c) }
-        case "camera":
-            let isOpen = topController() is DocCamViewController
-            if (payload["open"] as? Bool ?? true) != isOpen { openDocCam() }
-        case "overlay":
-            let l = Beamer.shared.layer
-            if let t = payload["timer"] as? [String: Any], let a = t["action"] as? String {
-                l.timerAction(a, seconds: (t["seconds"] as? NSNumber)?.doubleValue)
-            }
-            if let b = payload["black"] as? Bool { Beamer.shared.setBlack(b) }
-            if let q = payload["quiet"] as? Bool { l.setQuiet(q, ask: topController()) }
+        case "open-camera", "close-camera", "camera":
+            // «camera» {open} ist der alte Name aus Fassung 1.
+            let want = name == "open-camera" || (name == "camera" && payload["open"] as? Bool ?? true)
+            let cam = DocCamViewController.current
+            if want, cam == nil { openDocCam(ref: Self.ref(payload)) }
+            if !want { cam?.close() }
         case "share":
             shareFromWeb(payload)
         case "print":
             printFromWeb(payload, webView: wv)
         case "pickFiles":
             pickFiles(types: payload["types"] as? [String] ?? ["pdf", "image"], multiple: payload["multiple"] as? Bool ?? true)
-        case "beamerPanel":
-            openBeamerRemote()
-        case "scan":
-            startScan((payload["format"] as? String).flatMap(ScanFormat.init(rawValue:)))
+        case "open-scanner", "scan":
+            startScan((payload["format"] as? String).flatMap(ScanFormat.init(rawValue:)), ref: Self.ref(payload))
         default:
             break
         }
+    }
+
+    /// `ref` der Web-App (geht im Ereignis `file` unverändert zurück), höchstens 200 Zeichen.
+    static func ref(_ payload: [String: Any]) -> String? {
+        guard let r = payload["ref"] as? String, !r.isEmpty else { return nil }
+        return String(r.prefix(200))
     }
 
     // MARK: Navigation

@@ -3,14 +3,13 @@ import WebKit
 
 /// Tastatur-Kürzel (Magic Keyboard). ⌘ gedrückt halten zeigt die Übersicht.
 /// Der Name (rawValue) ist zugleich das Ereignis an die Web-App (`klassentaktShell.on('phase-next', …)`).
+/// Ausnahme: Timer und Ruhe gehen als `tool` `{k}` an den Werkzeugkoffer des Classroom Screens.
 enum ShellCommand: String, CaseIterable {
     case screenToggle = "screen-toggle"
     case phaseNext = "phase-next"
     case phasePrev = "phase-prev"
-    case timerToggle = "timer-toggle"
-    case blackToggle = "black-toggle"
-    case quietToggle = "quiet-toggle"
-    case beamerPanel = "beamer-panel"
+    case timerToggle = "tool-timer"
+    case quietToggle = "tool-ruhe"
     case camera
     case scan
     case importFile = "import"
@@ -25,9 +24,7 @@ enum ShellCommand: String, CaseIterable {
         case .phaseNext: return "Nächste Phase"
         case .phasePrev: return "Vorherige Phase"
         case .timerToggle: return "Timer starten/stoppen"
-        case .blackToggle: return "Bildschirm schwarz"
-        case .quietToggle: return "Ruhe-Ampel an/aus"
-        case .beamerPanel: return "Beamer-Fernbedienung"
+        case .quietToggle: return "Ruhe an/aus"
         case .camera: return "Dokumentenkamera"
         case .scan: return "Dokument scannen"
         case .importFile: return "Datei importieren"
@@ -44,9 +41,7 @@ enum ShellCommand: String, CaseIterable {
         case .phaseNext: return UIKeyCommand.inputRightArrow
         case .phasePrev: return UIKeyCommand.inputLeftArrow
         case .timerToggle: return "t"
-        case .blackToggle: return "d"
         case .quietToggle: return "a"
-        case .beamerPanel: return "p"
         case .camera: return "k"
         case .scan: return "s"
         case .importFile: return "o"
@@ -59,7 +54,7 @@ enum ShellCommand: String, CaseIterable {
 
     var modifiers: UIKeyModifierFlags {
         switch self {
-        case .screenToggle, .timerToggle, .blackToggle, .camera, .quietToggle, .beamerPanel: return [.command, .shift]
+        case .screenToggle, .timerToggle, .camera, .quietToggle: return [.command, .shift]
         case .phaseNext, .phasePrev, .scan: return [.command, .alternate]
         case .search, .reload, .importFile, .print, .shortcutsHelp: return .command
         }
@@ -71,6 +66,15 @@ enum ShellCommand: String, CaseIterable {
         case .phaseNext: return "ArrowRight"
         case .phasePrev: return "ArrowLeft"
         case .timerToggle: return " "
+        default: return nil
+        }
+    }
+
+    /// Werkzeug im Classroom Screen (`TOOLS[].k` der Web-App).
+    var tool: String? {
+        switch self {
+        case .timerToggle: return "timer"
+        case .quietToggle: return "ruhe"
         default: return nil
         }
     }
@@ -123,14 +127,6 @@ extension MainViewController {
             printFromWeb([:], webView: nil)
         case .camera:
             openDocCam()
-        case .quietToggle:
-            let l = Beamer.shared.layer
-            l.setQuiet(!l.quietOn, ask: topController())
-        case .beamerPanel:
-            openBeamerRemote()
-        case .blackToggle:
-            Beamer.shared.toggleBlack()
-            shell.emit("beamer", Beamer.shared.stateForWeb)
         case .screenToggle:
             if shell.emit(c.rawValue, ["open": screenOpen]) { return }
             if let wv = Beamer.shared.screenWebView {
@@ -148,12 +144,12 @@ extension MainViewController {
             webView.evaluateJavaScript(js) { [weak self] r, _ in
                 if (r as? Bool) != true { self?.toast("Hier gibt es keine Suche") }
             }
-        case .phaseNext, .phasePrev, .timerToggle:
-            if shell.emit(c.rawValue) { return }
+        case .phaseNext, .phasePrev, .timerToggle, .quietToggle:
+            if let t = c.tool { if shell.emit("tool", ["k": t]) { return } } else if shell.emit(c.rawValue) { return }
             if let wv = Beamer.shared.screenWebView, let key = c.screenKey {
                 wv.evaluateJavaScript(Self.keyJS(key), completionHandler: nil)
-            } else if c == .timerToggle {
-                Beamer.shared.toggleTimer()
+            } else if c == .quietToggle {
+                toast("Ruhe gibt es im Werkzeugkoffer des Classroom Screens")
             } else {
                 toast("Zuerst den Classroom Screen öffnen (⌘⇧B)")
             }

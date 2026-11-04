@@ -4,7 +4,7 @@ import UIKit
 /// Nur in Debug-Builds und nur mit dem Launch-Argument `-ktUITest`. Im Release ist `on` immer false.
 /// - Kamera und Scanner nehmen ein erfundenes Test-Arbeitsblatt statt der Kamera.
 /// - `-ktBeamerPreview`: zeigt den Beamer verkleinert oben links (der Simulator hat keinen externen Bildschirm).
-/// - `-ktRun <befehl>`: führt nach dem Start einen Befehl aus (ShellCommand oder Demo).
+/// - `-ktRun <befehl>`: führt nach dem Start einen Befehl aus (ShellCommand, Demo oder `web-open-camera`).
 enum TestMode {
     static var on: Bool {
         #if DEBUG
@@ -166,6 +166,9 @@ extension MainViewController {
             switch r {
             case "demo-export": if let u = TestMode.demoPDF() { self.offer(u) }
             case "demo-ics": if let u = TestMode.demoICS() { self.offer(u) }
+            // Wie das Werkzeug «Dokumentenkamera» im Werkzeugkoffer: Nachricht über die echte Brücke.
+            case "web-open-camera":
+                self.webView.evaluateJavaScript("window.klassentaktShell && klassentaktShell.send('open-camera', {ref: 'test-lektion'})", completionHandler: nil)
             default: if let c = ShellCommand(rawValue: r) { self.run(c) }
             }
         }
