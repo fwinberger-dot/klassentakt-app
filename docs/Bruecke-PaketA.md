@@ -83,7 +83,7 @@ Die App fängt die Kürzel ab (⌘ halten zeigt die Übersicht) und schickt sie 
 | ⌘⇧T Timer | `timer-toggle` | Screen offen: Leertaste an den Screen; sonst Timer der Beamer-Ebene |
 | ⌘F Suchen | `search` | erstes `input[type=search]` bzw. Platzhalter «…uch…» fokussieren |
 | ⌘⇧D Bildschirm schwarz | – (immer nativ) | – |
-| ⌘⇧K Kamera, ⌥⌘S Scannen, ⌘⇧A Ruhe-Ampel, ⌘⇧P Fernbedienung, ⌘O Import, ⌘P Drucken, ⌘R Neu laden | – (nativ) | – |
+| ⌘⇧K Kamera, ⌥⌘S Scannen, ⌘⇧A Ruhe-Ampel, ⌘⇧P Fernbedienung, ⌘O Import, ⌘P Drucken, ⌘R Neu laden, ⌘/ Übersicht | – (nativ) | – |
 
 Web → App: `send('command', {id: 'black-toggle'})` löst jedes Kürzel auch aus der Web-App aus (`id` = Ereignisname bzw. `camera`, `scan`, `quiet-toggle`, `beamer-panel`, `import`, `print`, `reload`).
 
