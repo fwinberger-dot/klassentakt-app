@@ -1,4 +1,4 @@
-# Brücke iPad-App ↔ Web-App, Paket A (Stand 04.11.2026)
+# Brücke iPad-App ↔ Web-App, Paket A (Stand 04.11.2026, Fassung 2: Kamera als Werkzeug, keine native Beamer-Ebene)
 
 Rolle «Apple-Apps» für die Rolle «Web-App». Die App-Seite ist auf dem Branch `claude/ipad-paket-a-cae7e1` gebaut (`ios/Klassentakt/Bridge.swift`). In `web/index.html` ist **nichts** geändert. Jede Funktion läuft auch ohne Web-Anschluss, mit dem Rückfall, der unten pro Funktion beschrieben ist. Die Anschlüsse machen das Ganze nur runder.
 
@@ -9,7 +9,7 @@ Die App setzt `window.klassentaktShell` nur auf `klassentakt.ch` und `*.klassent
 ```js
 klassentaktShell = {
   isShell: true, platform: 'ios', shellVersion: '1.0.0',
-  features: ['beamer-extern','shortcuts','scan','camera','beamer-layer','share','print','files'],
+  features: ['beamer-extern','shortcuts','scan','camera','share','print','files'],  // 'scan'/'camera' nur, wenn das Gerät es kann
   send(name, payload),        // Web → App, payload = einfaches JSON-Objekt
   on(name, fn) → off(),       // App → Web, fn(payload)
   share({ name, type, blob }) → Promise,  // Helfer: liest blob als Base64 und schickt 'share'
@@ -20,77 +20,111 @@ klassentaktShell = {
 - **Anmelden = zuhören.** `on(name, fn)` meldet der App: «diese Seite kann `name`». Ohne Anmeldung nimmt die App ihren Rückfall. `off()` (der Rückgabewert) meldet wieder ab, ein Neuladen ebenfalls.
 - Jedes Ereignis kommt zusätzlich als `window` CustomEvent `klassentakt-shell` mit `detail: {name, payload}`, zum Mitlesen ohne Anmeldung.
 - Das bisherige Ereignis `klassentakt-beamer` (`{open, extern}`) bleibt unverändert.
-- Erkennen: `sh.platform === 'ios' && sh.features.includes('scan')` usw. Die Mac-App hat andere `features`, `send`/`on` gibt es dort nicht.
+- Erkennen: `sh.platform === 'ios' && sh.features.includes('camera')` usw. `camera` fehlt bei einem iPad ohne Rückkamera, `scan` dort, wo VisionKit nicht scannen kann. Die Web-App zeigt die Werkzeuge nur, wenn das Merkmal da ist. Die Mac-App hat andere `features`, `send`/`on` gibt es dort nicht.
 - Nachrichten aus iframes (YouTube usw.) nimmt die App nicht an.
+- **Im Screen-Fenster** geht alles über `ktShell()` (= `opener.klassentaktShell`): `ktShell().send('open-camera')` und `ktShell().on('camera', fn)` funktionieren von dort aus.
+- `ref` (frei wählbarer Text, höchstens 200 Zeichen) gibt die Web-App bei `open-camera` und `open-scanner` mit. Die App schickt ihn im `file`-Ereignis unverändert zurück. So weiss die Web-App, an welche Lektion oder Ablage das Ergebnis gehört.
 - Das iPad hat kein `sh.beamer` (das ist die Mac-API). Das ist Absicht, damit das bestehende Menü «Auf anderen Bildschirm» nicht erscheint.
 
-## 1. Dokumentenkamera
+## Was sich gegenüber Fassung 1 ändert
+
+Florian hat entschieden, dass die Werkzeuge im Classroom Screen der Web-App bleiben. Die App baut keine eigenen.
+
+- **Weg:**
+  - die native Beamer-Ebene mit Timer, Ruhe-Ampel und «schwarz»
+  - der Knopf «Beamer» mit der Fernbedienung
+  - die Auswahl beim Verbinden
+  - die Nachrichten `overlay` und `beamerPanel`
+  - das Merkmal `beamer-layer`
+  - die Kürzel ⌘⇧D und ⌘⇧P
+- **Neu:**
+  - Die Dokumentenkamera ist ein **Werkzeug im Werkzeugkoffer** der Web-App und startet mit `send('open-camera')`.
+  - Der Scanner ist ein **Anhang** in der Lektion bzw. Ablage und startet mit `send('open-scanner')`.
+  - Die Kürzel ⌘⇧T und ⌘⇧A lösen die Werkzeuge der Web-App aus, über das Ereignis `tool`.
+- **Bleibt:**
+  - Der Beamer zeigt über die eigene Szene den Classroom Screen der Web-App.
+  - Teilen, Drucken und Dateien bleiben unverändert, ebenso die übrigen Kürzel.
+
+## 1. Dokumentenkamera (Werkzeug im Werkzeugkoffer)
 
 | Richtung | Name | Nutzlast |
 |---|---|---|
-| Web → App | `camera` | `{open?: boolean}` (Standard `true`, `false` schliesst) |
-| App → Web | `file` | `{source: 'camera', name: 'Dokumentenkamera 2026-11-04 09.41.jpg', type: 'image/jpeg', size, file: File}` |
-| App → Web | `beamer` | Zustand, darin `camera: true/false` (siehe 2.) |
+| Web → App | `open-camera` | `{ref?: string}` |
+| Web → App | `close-camera` | `{}` |
+| App → Web | `camera` | `{open: boolean}`, bei jedem Öffnen und Schliessen, zuerst gleich nach `on('camera')` |
+| App → Web | `file` | `{source: 'camera', ref?, name: 'Dokumentenkamera 2026-11-04 09.41.jpg', type: 'image/jpeg', size, file: File}` |
 
-Was die App tut: Sie zeigt das Live-Bild auf dem Beamer (über dem Screen), Vorschau und Knöpfe auf dem iPad, Zoom mit zwei Fingern, Einfrieren, Drehen, Licht und «Foto übernehmen». Öffnen geht über das Kürzel ⌘⇧K, den Knopf «Beamer» und die Auswahl beim Verbinden.
+Was die App tut:
+- Sie öffnet die Kamera nativ im Vollbild auf dem iPad, mit Vorschau und Knöpfen.
+- Bedienung: Zoom mit zwei Fingern, Einfrieren, Drehen, Licht, «Foto übernehmen», «Schliessen».
+- Ist ein Beamer verbunden, zeigt er das Live-Bild statt des Classroom Screens. Nach dem Schliessen zeigt er wieder den Screen.
+- Ohne Beamer ist es eine Lupe bzw. ein Fotoapparat auf dem iPad.
+
+**Web-Anschluss (Rolle Web-App):**
+1. In `TOOLS` einen Eintrag ergänzen, etwa so:
+   ```js
+   { k: "doccam", n: "Dokumentenkamera", ic: …, on: () => KTCAM.open, a: () => "@doccam", hide: () => !ktHas("camera") }
+   ```
+   Dabei gilt:
+   - `ktHas = f => { const sh = ktShell(); return !!(sh && sh.platform === 'ios' && (sh.features || []).includes(f)); }`
+   - In `tlRun` wird `"@doccam"` zu `KTCAM.open ? ktShell().send('close-camera') : ktShell().send('open-camera', {ref: …})`.
+2. Im Screen einmal `ktShell().on('camera', st => { KTCAM.open = st.open; renderCS(); })` aufrufen, damit die Kachel «an» zeigt.
+3. `on('file')` mit `source === 'camera'`: Das Foto kommt an die aktuelle Lektion bzw. den Ablauf (siehe 5.).
+
+**Rückfall ohne Anschluss:**
+- Die Kamera öffnet sich mit ⌘⇧K.
+- «Foto übernehmen» öffnet eine Vorschau mit Teilen-Menü und Drucken. Ein Hinweis sagt, dass diese Klassentakt-Version das Foto noch nicht direkt übernimmt.
+
+## 2. Beamer (eigene Szene, zeigt den Classroom Screen)
+
+| Richtung | Name | Nutzlast |
+|---|---|---|
+| App → Web | `beamer` | `{open, extern, camera}` (`open` = Screen-Fenster offen, `extern` = Beamer verbunden) |
+| App → Web | `klassentakt-beamer` (CustomEvent, wie bisher) | `{open, extern}` |
+
+Was die App tut:
+- Auf dem externen Bildschirm (HDMI oder AirPlay «erweitern») zeigt sie den Classroom Screen der Web-App im Vollbild, bei offener Kamera deren Bild. Das iPad bleibt frei für Planer und Notizen.
+- Solange kein Screen offen ist, zeigt der Beamer eine ruhige Platzhalterseite mit dem Klassentakt-Logo und «Classroom Screen auf dem iPad öffnen». Er spiegelt **nie** den Planer.
+- Beim Verbinden (Vorschlag, statt der Auswahl von Fassung 1): Ist der Screen schon offen, erscheint auf dem iPad nur kurz «Beamer verbunden, zeigt den Classroom Screen». Sonst erscheint ein Hinweis, der nicht blockiert und nach 8 s verschwindet, mit dem Knopf «Classroom Screen öffnen». Es gibt keine Auswahl und keinen Dialog.
+
+**Web-Anschluss:** keiner nötig. Optional `on('beamer')`, um im Screen «auf dem Beamer» anzuzeigen.
+
+## 3. Scanner (Anhang in Lektion und Ablage)
+
+| Richtung | Name | Nutzlast |
+|---|---|---|
+| Web → App | `open-scanner` | `{format?: 'pdf'\|'image', ref?: string}`. Ohne Format fragt die App nach dem Scannen. (`scan` bleibt als alter Name gültig.) |
+| App → Web | `file` | `{source: 'scan', ref?, name: 'Scan 2026-11-04 09.41.pdf', type: 'application/pdf'\|'image/jpeg', size, file: File}`. Bei `image` und mehreren Seiten kommt ein Ereignis pro Seite, `… (2).jpg` |
+
+Was die App tut:
+- Sie öffnet den VisionKit-Scanner: zuschneiden, entzerren, mehrere Seiten.
+- Die Seiten werden auf höchstens 2200 px verkleinert. Das PDF ist A4 hoch oder quer, die Bilder sind JPEG mit 75 %.
 
 **Web-Anschluss:**
-1. Knopf «Dokumentenkamera» im Classroom Screen bzw. im Menü, sichtbar bei `features.includes('camera')` → `send('camera')`.
-2. `on('file', …)`: `source === 'camera'` → Foto in die aktuelle Lektion bzw. den Ablauf hängen (gleicher Weg wie «Datei hochladen», mit Rückmeldung).
+1. Dort, wo es heute «Datei hochladen» bzw. «Anhang» gibt (Lektion, Material), bei `ktHas('scan')` den Eintrag «Scannen» ergänzen. Er ruft `ktShell().send('open-scanner', {format: 'pdf', ref: lektionId})` auf. Im Werkzeugkoffer des Screens braucht es den Scanner nicht.
+2. `on('file')` mit `source === 'scan'`: Der Scan wird über `ref` an die richtige Lektion gehängt, wie ein Upload.
 
-**Rückfall ohne Anschluss:** Die Kamera geht über ⌘⇧K oder den Knopf «Beamer». «Foto übernehmen» öffnet eine Vorschau mit Teilen-Menü (In Dateien sichern, Bild sichern, AirDrop, Drucken) und dem Hinweis, dass diese Klassentakt-Version das noch nicht direkt übernimmt.
-
-## 2. Beamer-Ebene
-
-| Richtung | Name | Nutzlast |
-|---|---|---|
-| Web → App | `overlay` | `{timer?: {action: 'start'\|'pause'\|'resume'\|'toggle'\|'reset', seconds?: number}, black?: boolean, quiet?: boolean}` |
-| Web → App | `beamerPanel` | `{}`: öffnet die Fernbedienung auf dem iPad |
-| App → Web | `beamer` | `{open, extern, black, camera, timer: {state: 'idle'\|'running'\|'paused'\|'done', remaining, duration}, quiet: false\|'gruen'\|'gelb'\|'rot'}` |
-
-Was die App tut: Sie hat eine eigene Ebene auf dem externen Bildschirm. Von unten nach oben: Screen, Kamera, Timer (oben rechts), Ruhe-Ampel (unten rechts), schwarz. Beim Verbinden (HDMI oder AirPlay «erweitern») erscheinen ein Hinweis und eine Auswahl: Classroom Screen, Dokumentenkamera, schwarz oder später. Unten rechts auf dem iPad gibt es den Knopf «Beamer» als Fernbedienung (Timer 1–15 Min., Start/Pause, Ampel mit Empfindlichkeit, schwarz). Die Ampel misst nur den Pegel, nimmt nichts auf und mischt mit Musik und Videos.
-
-**Web-Anschluss (optional):**
-- Wer den Timer der Ebene statt des Screen-Timers nutzen will: `send('overlay', {timer: {action: 'start', seconds: 300}})`.
-- Den Zustand anzeigen, z. B. «Beamer schwarz» im Screen-Menü: `on('beamer', st => …)`.
-- Knopf «Fernbedienung» im Screen-Menü bei `features.includes('beamer-layer')` → `send('beamerPanel')`.
-
-**Rückfall ohne Anschluss:** Alles läuft nativ über den Knopf «Beamer» und die Kürzel. Der Timer der Web-App (im Screen) und der Timer der Ebene sind dann zwei getrennte Timer. Das ist bewusst so, siehe 4.
-
-## 3. Scanner
-
-| Richtung | Name | Nutzlast |
-|---|---|---|
-| Web → App | `scan` | `{format?: 'pdf'\|'image'}`: ohne Format fragt die App nach dem Scannen |
-| App → Web | `file` | `{source: 'scan', name: 'Scan 2026-11-04 09.41.pdf', type: 'application/pdf'\|'image/jpeg', size, file: File}`. Bei `image` und mehreren Seiten kommt ein Ereignis pro Seite, `… (2).jpg` |
-
-Was die App tut: Sie öffnet den VisionKit-Scanner (zuschneiden, entzerren, mehrere Seiten). Die Seiten werden auf höchstens 2200 px verkleinert, das PDF ist A4 hoch oder quer, JPEG mit 75 %.
-
-**Web-Anschluss:**
-1. Neben «Datei hochladen» (Lektion, Material) einen Knopf «Scannen» bei `features.includes('scan')` → `send('scan', {format: 'pdf'})`.
-2. `on('file', …)`: `source === 'scan'` → wie ein Upload an die offene Lektion hängen.
-
-**Rückfall ohne Anschluss:** Scannen geht über das Kürzel ⌥⌘S, danach erscheint die Vorschau mit Teilen-Menü (siehe 1.).
+**Rückfall ohne Anschluss:** Scannen geht mit ⌥⌘S. Danach öffnet sich die Vorschau mit Teilen-Menü (siehe 1.).
 
 ## 4. Tastatur-Kürzel
 
-Die App fängt die Kürzel ab (⌘ halten zeigt die Übersicht) und schickt sie als Ereignis an die Web-App, wenn die Web-App darauf hört. Sonst nimmt sie den Rückfall.
+Die App fängt die Kürzel ab (⌘ halten zeigt die Übersicht). Hört die Web-App auf das Ereignis, bekommt sie es als Ereignis. Sonst nimmt die App den Rückfall.
 
 | Kürzel | Ereignis (App → Web) | Rückfall ohne Anschluss |
 |---|---|---|
 | ⌘⇧B Classroom Screen an/aus | `screen-toggle` `{open}` | offen: `window.close()` im Screen; zu: `window.open('/?classroom=1')` |
-| ⌥⌘→ / ⌥⌘← Phase | `phase-next` / `phase-prev` | Taste `ArrowRight`/`ArrowLeft` an den offenen Screen (csKey) |
-| ⌘⇧T Timer | `timer-toggle` | Screen offen: Leertaste an den Screen; sonst Timer der Beamer-Ebene |
+| ⌥⌘→ / ⌥⌘← Phase | `phase-next` / `phase-prev` | Taste `ArrowRight`/`ArrowLeft` an den offenen Screen (`csKey`) |
+| ⌘⇧T Timer | `tool` `{k: 'timer'}` | Screen offen: Leertaste an den Screen (`tToggle`); sonst Hinweis «Zuerst den Classroom Screen öffnen (⌘⇧B)» |
+| ⌘⇧A Ruhe | `tool` `{k: 'ruhe'}` | Hinweis «Ruhe im Werkzeugkoffer des Classroom Screens» |
 | ⌘F Suchen | `search` | erstes `input[type=search]` bzw. Platzhalter «…uch…» fokussieren |
-| ⌘⇧D Bildschirm schwarz | – (immer nativ) | – |
-| ⌘⇧K Kamera, ⌥⌘S Scannen, ⌘⇧A Ruhe-Ampel, ⌘⇧P Fernbedienung, ⌘O Import, ⌘P Drucken, ⌘R Neu laden, ⌘/ Übersicht | – (nativ) | – |
+| ⌘⇧K Dokumentenkamera, ⌥⌘S Scannen, ⌘O Import, ⌘P Drucken, ⌘R Neu laden, ⌘/ Übersicht | – (nativ) | – |
 
-Web → App: `send('command', {id: 'black-toggle'})` löst jedes Kürzel auch aus der Web-App aus (`id` = Ereignisname bzw. `camera`, `scan`, `quiet-toggle`, `beamer-panel`, `import`, `print`, `reload`).
+- `tool` ist bewusst allgemein gehalten. `k` ist der Schlüssel aus `TOOLS`, also `timer`, `ruhe` und später vielleicht weitere. Die Web-App ruft dafür `tlRun(TOOLS.find(t => t.k === k).a())` auf, die Werkzeuge bleiben damit ganz in der Web-App.
+- Web → App: `send('command', {id})` löst die nativen Kürzel auch aus der Web-App aus, mit `id` aus `camera`, `scan`, `import`, `print`, `reload`.
 
 **Web-Anschluss (empfohlen, klein):**
-- `on('phase-next')`, `on('phase-prev')`, `on('timer-toggle')` im Planer registrieren (das Screen-Fenster hat dort seinen `opener`) und die Funktionen des Screens direkt aufrufen. Das ist robuster als der Tastendruck-Rückfall und funktioniert auch, wenn gerade ein Eingabefeld im Screen den Fokus hat.
-- `on('search')` → die eigene Suche öffnen.
-- `on('screen-toggle')` → `startCS()` bzw. `closeCS()`, damit die heutige Lektion gewählt wird.
+- `on('tool')`, `on('phase-next')`, `on('phase-prev')` im Screen-Fenster registrieren, über `ktShell()`, beim Schliessen mit `off()` abmelden.
+- `on('search')` und `on('screen-toggle')` im Planer: Die eigene Suche öffnen, bzw. `startCS()` und `closeCS()` aufrufen.
 
 ## 5. Teilen-Menü, Drucken, Dateien
 
@@ -105,7 +139,7 @@ Was die App tut, schon ohne Anschluss:
 - **Exporte** über `<a download>`, `blob:` und `data:`, auch mit `target=_blank`, sowie Antworten mit `Content-Disposition: attachment` oder `text/calendar` lädt die App herunter. PDF und Bilder erscheinen als Vorschau (Teilen, Drucken), alles andere (ICS, JSON, .klassentakt, HTML) direkt im Teilen-Menü. **Damit gehen die heutigen Exporte schon ohne Web-Änderung.**
 - **`window.print()`** wird auf AirPrint umgeleitet (bisher tat es im WKWebView nichts). ⌘P druckt den Planer.
 - **«Öffnen in» Klassentakt** aus Dateien und AirDrop ist für PDF, Bilder, ICS und `.klassentakt` angemeldet. `.klassentakt` ist als eigener Dateityp `ch.klassentakt.paket` erklärt.
-- **Drag & Drop:** Ablagen der Web-App (`drop`-Handler mit `dataTransfer.files`) bekommen Dateien direkt von WebKit, wie im Browser. Die App nimmt zusätzlich Drops auf ihre eigenen Flächen an (Knopf «Beamer», Statusleisten-Streifen) und gibt sie als `file` (`source: 'drop'`) weiter.
+- **Drag & Drop:** Ablagen der Web-App (`drop`-Handler mit `dataTransfer.files`) bekommen Dateien direkt von WebKit, wie im Browser. Die App nimmt zusätzlich Drops auf ihre eigene Fläche an (Statusleisten-Streifen oben) und gibt sie als `file` (`source: 'drop'`) weiter.
 
 **Web-Anschluss:**
 1. `on('file', …)` **einmal zentral** (im Planer) registrieren und nach `source` und Typ verteilen: Bild/PDF an die offene Lektion bzw. die Material-Ablage, `.klassentakt` an den Bibliotheks-Import, `.ics` an einen Kalender-Import (falls es den gibt, sonst Hinweis). Solange niemand auf `file` hört, öffnet die App die Vorschau mit Teilen-Menü. Beim Kaltstart über «Öffnen in» wartet die App bis zu 10 s, bis die Seite auf `file` hört.
@@ -115,9 +149,16 @@ Was die App tut, schon ohne Anschluss:
 
 ## Was die Web-App mindestens tun sollte (Reihenfolge nach Nutzen)
 
-1. `on('file')` zentral mit Verteilung (Scans, Kamera-Fotos, Import, Öffnen in). Das ist der grösste Gewinn, etwa ½ Tag.
-2. Knöpfe «Scannen» und «Dokumentenkamera» bei `features`, etwa ¼ Tag.
-3. `on('phase-next' | 'phase-prev' | 'timer-toggle' | 'search' | 'screen-toggle')`, etwa ¼ Tag.
-4. Optional: `beamer`-Zustand im Screen-Menü, Knopf «Fernbedienung», `overlay`-Timer.
+1. Das Werkzeug «Dokumentenkamera» in `TOOLS` (`open-camera`, `close-camera`, `on('camera')`), etwa ¼ Tag.
+2. `on('file')` zentral mit Verteilung nach `source` und `ref` (Kamera-Fotos, Scans, Import, Öffnen in), etwa ½ Tag.
+3. «Scannen» beim Anhang bzw. Upload (`open-scanner` mit `ref`), etwa ¼ Tag.
+4. `on('tool' | 'phase-next' | 'phase-prev' | 'search' | 'screen-toggle')`, etwa ¼ Tag.
 
-Testen ohne iPad: In der Browser-Konsole eine Attrappe setzen, zum Beispiel `window.klassentaktShell = {isShell:true, platform:'ios', features:['scan','camera','files'], send:(n,p)=>console.log(n,p), on:(n,f)=>(window['_kt_'+n]=f, ()=>{})}`. Ein Scan lässt sich dann mit `_kt_file({source:'scan', name:'Scan.pdf', type:'application/pdf', file: new File(['%PDF'], 'Scan.pdf')})` nachstellen. Nur erfundene Namen und Daten verwenden.
+Testen ohne iPad: In der Browser-Konsole eine Attrappe setzen, zum Beispiel:
+
+```js
+window.klassentaktShell = {isShell:true, platform:'ios', features:['scan','camera','files'],
+  send:(n,p)=>console.log(n,p), on:(n,f)=>(window['_kt_'+n]=f, ()=>{})}
+```
+
+Dann `_kt_camera({open:true})` für den Zustand aufrufen, und `_kt_file({source:'camera', ref:'L1', name:'Dokumentenkamera.jpg', type:'image/jpeg', file: new File([''], 'Dokumentenkamera.jpg')})` für ein übernommenes Foto. Dabei nur erfundene Namen und Daten verwenden.
