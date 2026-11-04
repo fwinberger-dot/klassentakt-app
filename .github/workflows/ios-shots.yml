@@ -61,6 +61,12 @@ jobs:
           done
           # Simulator lief quer, Screenshots kommen hochkant → aufrecht drehen
           for f in shots/*.png; do sips -r 270 "$f" >/dev/null; done
+          # Videos gleich drehen (90° gegen den Uhrzeiger wie sips -r 270)
+          command -v ffmpeg >/dev/null || brew install ffmpeg
+          for f in shots/*.mp4; do
+            ffmpeg -loglevel error -y -i "$f" -vf transpose=2 -c:v libx264 -pix_fmt yuv420p -crf 23 -an "${f%.mp4}.quer.mp4" \
+              && mv "${f%.mp4}.quer.mp4" "$f"
+          done
           ls -la shots
       - name: Screenshots aus den Testergebnissen (falls direkt schreiben nicht ging)
         if: always()
