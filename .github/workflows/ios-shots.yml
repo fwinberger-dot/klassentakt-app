@@ -1,0 +1,71 @@
+name: Klassentakt-shots-paketA
+
+# Screenshots und Videos pro Funktion (Paket A) im iPad-Simulator. Nur von Hand starten.
+# Die App läuft im UI-Test-Modus (-ktUITest, nur Debug): Test-Arbeitsblatt statt Kamera, Beamer als Vorschau.
+on:
+  workflow_dispatch:
+  # Neue Workflows lassen sich erst von Hand starten, wenn sie auf main liegen → auch beim Push auf den Paket-A-Branch.
+  push:
+    branches: ['claude/ipad-paket-a-*']
+    paths: ['ios/**', '.github/workflows/ios-shots.yml']
+
+jobs:
+  shots:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode-Projekt erzeugen
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: iPad-Simulator wählen und starten
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)['devices']
+          c=[x for k,v in d.items() if 'iOS' in k for x in v if 'iPad' in x['name']]
+          c.sort(key=lambda x: ('Pro' not in x['name'], x['name']))
+          print(c[0]['udid'])")
+          echo "Simulator: $UDID"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl ui "$UDID" appearance light || true
+      - name: Für Tests bauen
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Klassentakt.xcodeproj -scheme Klassentakt -configuration Debug \
+            -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build-for-testing | tail -20
+      - name: Pro Funktion UI-Test mit Video
+        working-directory: ios
+        run: |
+          mkdir -p shots
+          for t in test4Kuerzel:4-kuerzel test3Scanner:3-scanner test1Kamera:1-kamera test2Beamer:2-beamer test5Dateien:5-dateien; do
+            name=${t%%:*}; video=${t##*:}
+            xcrun simctl io "$UDID" recordVideo --codec=h264 --force "shots/$video.mp4" &
+            REC=$!
+            sleep 2
+            TEST_RUNNER_KT_SHOTS="$PWD/shots" xcodebuild -project Klassentakt.xcodeproj -scheme Klassentakt \
+              -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+              -only-testing:"KlassentaktUITests/ShotsTests/$name" -resultBundlePath "build/$name.xcresult" \
+              test-without-building 2>&1 | grep -E "Test Case|error:|TEST (SUCCEEDED|FAILED)" || true
+            kill -INT $REC; wait $REC || true
+          done
+          ls -la shots
+      - name: Screenshots aus den Testergebnissen (falls direkt schreiben nicht ging)
+        if: always()
+        working-directory: ios
+        run: |
+          for r in build/*.xcresult; do
+            xcrun xcresulttool export attachments --path "$r" --output-path "shots/xcresult-$(basename "$r" .xcresult)" 2>/dev/null || true
+          done
+          ls -R shots | head -80
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Klassentakt-shots-paketA
+          path: ios/shots/

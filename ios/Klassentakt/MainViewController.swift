@@ -90,6 +90,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if TestMode.on { startTestMode() }
         Beamer.shared.layerChanged()
         if Beamer.shared.pendingPrompt {
             Beamer.shared.pendingPrompt = false

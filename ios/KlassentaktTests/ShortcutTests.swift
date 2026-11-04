@@ -37,3 +37,21 @@ final class ShortcutTests: XCTestCase {
         XCTAssertNil(MainViewController.color(fromCSS: "transparent"))
     }
 }
+
+final class GlyphTests: XCTestCase {
+    func testGlyphs() {
+        XCTAssertEqual(ShellCommand.screenToggle.glyph, "⇧⌘B")
+        XCTAssertEqual(ShellCommand.phaseNext.glyph, "⌥⌘→")
+        XCTAssertEqual(ShellCommand.search.glyph, "⌘F")
+    }
+
+    func testTestModeOffInUnitTests() {
+        XCTAssertFalse(TestMode.on)
+        XCTAssertNil(TestMode.run)
+    }
+
+    func testDemoFiles() {
+        XCTAssertEqual(TestMode.demoPDF()?.pathExtension, "pdf")
+        XCTAssertNotNil(TestMode.cameraFrame())
+    }
+}

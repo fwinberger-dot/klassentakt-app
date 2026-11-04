@@ -142,7 +142,7 @@ extension MainViewController: UIDocumentPickerDelegate, UIDropInteractionDelegat
 
     /// send('pickFiles', {types, multiple}) oder ⌘O. Dateien kommen als Ereignis 'file' (source 'import').
     func pickFiles(types: [String] = ["pdf", "image"], multiple: Bool = true) {
-        guard shell.isListening("file") else {
+        guard shell.isListening("file") || TestMode.on else {
             toast("Diese Klassentakt-Version übernimmt Dateien hier noch nicht – nutze «Datei hochladen»")
             return
         }

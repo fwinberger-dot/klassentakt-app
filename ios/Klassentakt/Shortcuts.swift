@@ -17,6 +17,7 @@ enum ShellCommand: String, CaseIterable {
     case print
     case search
     case reload
+    case shortcutsHelp = "shortcuts"
 
     var title: String {
         switch self {
@@ -33,6 +34,7 @@ enum ShellCommand: String, CaseIterable {
         case .print: return "Drucken"
         case .search: return "Suchen"
         case .reload: return "Neu laden"
+        case .shortcutsHelp: return "Tastatur-Kürzel anzeigen"
         }
     }
 
@@ -51,6 +53,7 @@ enum ShellCommand: String, CaseIterable {
         case .print: return "p"
         case .search: return "f"
         case .reload: return "r"
+        case .shortcutsHelp: return "/"
         }
     }
 
@@ -58,7 +61,7 @@ enum ShellCommand: String, CaseIterable {
         switch self {
         case .screenToggle, .timerToggle, .blackToggle, .camera, .quietToggle, .beamerPanel: return [.command, .shift]
         case .phaseNext, .phasePrev, .scan: return [.command, .alternate]
-        case .search, .reload, .importFile, .print: return .command
+        case .search, .reload, .importFile, .print, .shortcutsHelp: return .command
         }
     }
 
@@ -70,6 +73,21 @@ enum ShellCommand: String, CaseIterable {
         case .timerToggle: return " "
         default: return nil
         }
+    }
+
+    /// «⌥⌘→», «⌘⇧B» – wie in der ⌘-Übersicht von iPadOS.
+    var glyph: String {
+        var g = ""
+        if modifiers.contains(.control) { g += "⌃" }
+        if modifiers.contains(.alternate) { g += "⌥" }
+        if modifiers.contains(.shift) { g += "⇧" }
+        if modifiers.contains(.command) { g += "⌘" }
+        switch input {
+        case UIKeyCommand.inputRightArrow: g += "→"
+        case UIKeyCommand.inputLeftArrow: g += "←"
+        default: g += input.uppercased()
+        }
+        return g
     }
 
     var keyCommand: UIKeyCommand {
@@ -93,6 +111,10 @@ extension MainViewController {
         switch c {
         case .reload:
             webView.reload()
+        case .shortcutsHelp:
+            let vc = UINavigationController(rootViewController: ShortcutsViewController())
+            vc.modalPresentationStyle = .formSheet
+            topController().present(vc, animated: true)
         case .scan:
             startScan(nil)
         case .importFile:
@@ -148,5 +170,33 @@ extension MainViewController {
     static func keyJS(_ key: String) -> String {
         let k = key == " " ? "' '" : "'\(key)'"
         return "document.body && document.body.dispatchEvent(new KeyboardEvent('keydown', { key: \(k), bubbles: true, cancelable: true }));"
+    }
+}
+
+/// Übersicht der Kürzel (zusätzlich zur ⌘-Übersicht von iPadOS, auch ohne Tastatur erreichbar).
+final class ShortcutsViewController: UITableViewController {
+    private let items = ShellCommand.allCases
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Tastatur-Kürzel"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .close, primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) })
+        tableView.allowsSelection = false
+    }
+
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { items.count }
+
+    override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
+        "Mit Magic Keyboard oder Smart Keyboard. ⌘ gedrückt halten zeigt die Übersicht überall."
+    }
+
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let c = UITableViewCell(style: .value1, reuseIdentifier: nil)
+        var cfg = UIListContentConfiguration.valueCell()
+        cfg.text = items[indexPath.row].title
+        cfg.secondaryText = items[indexPath.row].glyph
+        cfg.secondaryTextProperties.font = .monospacedSystemFont(ofSize: 17, weight: .medium)
+        c.contentConfiguration = cfg
+        return c
     }
 }

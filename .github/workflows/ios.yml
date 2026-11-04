@@ -40,7 +40,7 @@ jobs:
           set -o pipefail
           xcodebuild -project Klassentakt.xcodeproj -scheme Klassentakt -configuration Debug \
             -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO test 2>&1 | grep -E "Test Case|error:|Executed|TEST (SUCCEEDED|FAILED)|\*\*" | tail -80
+            CODE_SIGNING_ALLOWED=NO -only-testing:KlassentaktTests test 2>&1 | grep -E "Test Case|error:|Executed|TEST (SUCCEEDED|FAILED)|\*\*" | tail -80
       - name: Im iPad-Simulator starten und Screenshots machen
         working-directory: ios
         run: |

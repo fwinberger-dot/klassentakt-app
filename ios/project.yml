@@ -16,7 +16,7 @@ targets:
     sources:
       - path: Klassentakt
     scheme:
-      testTargets: [KlassentaktTests]
+      testTargets: [KlassentaktTests, KlassentaktUITests]
     info:
       path: Klassentakt/Info.plist
       properties:
@@ -95,6 +95,19 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ch.klassentakt.app.tests
+        TARGETED_DEVICE_FAMILY: "2"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+  KlassentaktUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: KlassentaktUITests
+    dependencies:
+      - target: Klassentakt
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ch.klassentakt.app.uitests
         TARGETED_DEVICE_FAMILY: "2"
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_STYLE: Automatic

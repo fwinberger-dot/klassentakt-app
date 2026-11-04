@@ -111,6 +111,7 @@ final class NoiseMeter {
     var onLevel: ((Double) -> Void)?
 
     static func requestAccess(_ done: @escaping (Bool) -> Void) {
+        if TestMode.on { done(true); return }
         let s = AVAudioSession.sharedInstance()
         switch s.recordPermission {
         case .granted: done(true)
@@ -120,6 +121,15 @@ final class NoiseMeter {
     }
 
     func start() -> Bool {
+        if TestMode.on {
+            // UI-Test: erfundener Pegel, wird in 6 s laut und wieder leise.
+            var t = 0.0
+            tick = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+                t += 0.2
+                self?.onLevel?(-48 + 36 * (0.5 - 0.5 * cos(2 * .pi * t / 12)))
+            }
+            return true
+        }
         let s = AVAudioSession.sharedInstance()
         do {
             // Mischen statt unterbrechen: Musik und Videos im Screen laufen weiter.
@@ -141,6 +151,7 @@ final class NoiseMeter {
 
     func stop() {
         tick?.invalidate(); tick = nil
+        if TestMode.on { return }
         recorder?.stop(); recorder = nil
         let s = AVAudioSession.sharedInstance()
         try? s.setActive(false, options: .notifyOthersOnDeactivation)
@@ -344,6 +355,7 @@ final class BeamerPill: UIButton {
         c.title = "Beamer"
         configuration = c
         accessibilityHint = "Timer, Ruhe-Ampel und Bildschirm schwarz"
+        accessibilityIdentifier = "beamerPill"
         isHidden = true
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -414,6 +426,7 @@ final class BeamerRemoteViewController: UIViewController {
         let quietLabel = UILabel()
         quietLabel.text = "Ruhe-Ampel (Mikrofon)"
         quietLabel.font = .systemFont(ofSize: 17, weight: .semibold)
+        quietSwitch.accessibilityIdentifier = "quietSwitch"
         quietSwitch.addAction(UIAction { [weak self] _ in
             Beamer.shared.layer.setQuiet(self?.quietSwitch.isOn ?? false, ask: self)
         }, for: .valueChanged)
@@ -431,8 +444,13 @@ final class BeamerRemoteViewController: UIViewController {
         note.textColor = .secondaryLabel
         note.numberOfLines = 0
 
+        let keys = UIButton(type: .system)
+        keys.configuration = .plain()
+        keys.configuration?.title = "⌘ Kürzel"
+        keys.addAction(UIAction { [weak self] _ in self?.dismiss(animated: true) { self?.host?.run(.shortcutsHelp) } }, for: .touchUpInside)
+        let head = row([title, UIView(), keys])
         let stack = UIStackView(arrangedSubviews: [
-            title, status, section("Zeigt"), show, blackBtn,
+            head, status, section("Zeigt"), show, blackBtn,
             section("Timer"), timerRow, presets,
             row([quietLabel, quietSwitch]), row([sensLabel, sens]), note,
         ])
@@ -515,7 +533,7 @@ extension MainViewController {
 
     /// Beamer eben verbunden: Hinweis und Auswahl, was er zeigen soll.
     func beamerConnectedPrompt() {
-        guard view.window != nil, !(topController() is UIAlertController) else { return }
+        guard view.window != nil, !(topController() is UIAlertController), TestMode.run == nil else { return }
         let b = Beamer.shared
         let a = UIAlertController(title: "Beamer verbunden",
                                   message: "Was soll der Beamer zeigen? Das iPad bleibt die Fernbedienung (Knopf «Beamer» unten rechts).",

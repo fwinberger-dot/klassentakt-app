@@ -79,6 +79,7 @@ final class ScanCoordinator: NSObject, VNDocumentCameraViewControllerDelegate {
 
     func start() {
         guard let host = host else { return }
+        if TestMode.on { keep = self; let p = TestMode.pages(); if let f = format { finish(p, f) } else { askFormat(p) }; return }
         guard VNDocumentCameraViewController.isSupported else { host.toast("Scannen braucht die Kamera des iPads"); return }
         let vc = VNDocumentCameraViewController()
         vc.delegate = self

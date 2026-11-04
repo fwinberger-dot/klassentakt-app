@@ -27,8 +27,11 @@ final class DocCam: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private(set) var torchOn = false
     var onChange: (() -> Void)?
 
-    var hasTorch: Bool { device?.hasTorch ?? false }
-    var maxZoom: CGFloat { Self.zoomLimit(device?.maxAvailableVideoZoomFactor ?? 1) }
+    var hasTorch: Bool { TestMode.on || (device?.hasTorch ?? false) }
+    var maxZoom: CGFloat { TestMode.on ? 5 : Self.zoomLimit(device?.maxAvailableVideoZoomFactor ?? 1) }
+    /// UI-Test: Standbild statt Kamera.
+    private var fakeTimer: Timer?
+    private lazy var fakeFrame: CIImage? = TestMode.cameraFrame().map { CIImage(cgImage: $0) }
 
     // MARK: Logik (getestet)
 
@@ -57,6 +60,7 @@ final class DocCam: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 
     /// Berechtigung prüfen; done(true) = Kamera darf laufen.
     static func requestAccess(_ done: @escaping (Bool) -> Void) {
+        if TestMode.on { done(true); return }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized: done(true)
         case .notDetermined: AVCaptureDevice.requestAccess(for: .video) { ok in DispatchQueue.main.async { done(ok) } }
@@ -72,6 +76,15 @@ final class DocCam: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     func detach(_ v: DocCamView) { views = views.filter { $0.value != nil && $0.value !== v } }
 
     func start(orientation: UIInterfaceOrientation) -> Bool {
+        if TestMode.on {
+            isFrozen = false
+            isRunning = true
+            fakeTimer?.invalidate()
+            fakeTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in self?.renderFake() }
+            renderFake()
+            onChange?()
+            return true
+        }
         if !configured && !configure() { return false }
         isFrozen = false
         setOrientation(orientation)
@@ -81,7 +94,20 @@ final class DocCam: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         return true
     }
 
+    private func renderFake() {
+        guard !isFrozen, var img = fakeFrame else { return }
+        if zoom > 1 {
+            let e = img.extent, w = e.width / zoom, h = e.height / zoom
+            img = img.cropped(to: CGRect(x: e.midX - w / 2, y: e.midY - h / 2, width: w, height: h))
+        }
+        img = img.oriented(Self.orientation(quarterTurns: quarterTurns))
+        guard let cg = ci.createCGImage(img, from: img.extent) else { return }
+        lastImage = cg
+        views.compactMap { $0.value }.forEach { $0.show(cg) }
+    }
+
     func stop() {
+        fakeTimer?.invalidate(); fakeTimer = nil
         setTorch(false)
         queue.async { if self.session.isRunning { self.session.stopRunning() } }
         isRunning = false
@@ -132,6 +158,7 @@ final class DocCam: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     func setZoom(_ z: CGFloat) {
+        if TestMode.on { zoom = Self.clampZoom(z, max: maxZoom); onChange?(); return }
         guard let dev = device else { return }
         let v = Self.clampZoom(z, max: maxZoom)
         if (try? dev.lockForConfiguration()) != nil {
@@ -143,6 +170,7 @@ final class DocCam: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     func setTorch(_ on: Bool) {
+        if TestMode.on { torchOn = on; onChange?(); return }
         guard let dev = device, dev.hasTorch, (try? dev.lockForConfiguration()) != nil else { torchOn = false; return }
         if on, dev.isTorchModeSupported(.on) { try? dev.setTorchModeOn(level: 0.6) } else { dev.torchMode = .off }
         dev.unlockForConfiguration()
@@ -237,6 +265,9 @@ final class DocCamViewController: UIViewController {
         let photoBtn = UIButton(type: .system); setup(photoBtn, "Foto übernehmen", "camera.fill", #selector(photo))
         let closeBtn = UIButton(type: .system); setup(closeBtn, "Schliessen", "xmark.circle.fill", #selector(close))
         [freezeBtn, rotateBtn, zoomBtn, torchBtn, photoBtn, closeBtn].forEach(bar.addArrangedSubview)
+        zip([freezeBtn, rotateBtn, zoomBtn, torchBtn, photoBtn, closeBtn], ["camFreeze", "camRotate", "camZoom", "camTorch", "camPhoto", "camClose"])
+            .forEach { $0.accessibilityIdentifier = $1 }
+        preview.accessibilityIdentifier = "camPreview"
 
         NSLayoutConstraint.activate([
             status.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
