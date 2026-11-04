@@ -1,6 +1,7 @@
 // Selbst-Update der Mac-Hülle.
-// Neue Versionen liegen als GitHub-Release (latest.json + zip). Die Web-App klassentakt.ch
-// braucht kein Update – das hier betrifft nur die Hülle (neue Mac-Funktionen).
+// Neue Versionen liegen öffentlich unter https://klassentakt.ch/download/ (latest.json + zip, hochgeladen
+// mit ops/download.sh im Web-Repo). Die Web-App klassentakt.ch braucht kein Update – das hier betrifft nur
+// die Hülle (neue Mac-Funktionen). Für staging: KLASSENTAKT_UPDATE_BASE=https://staging.klassentakt.ch/download/
 //
 // Ablauf: latest.json holen → zip laden → SHA-256 prüfen → entpacken (ditto) →
 // Hilfsskript wartet, bis die App beendet ist, tauscht die App aus und startet sie neu.
@@ -10,9 +11,29 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 
-const REPO = 'fwinberger-dot/klassentakt-app';
-const LATEST_URL = `https://github.com/${REPO}/releases/latest/download/latest.json`;
-const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`;
+const DOWNLOAD_BASE = 'https://klassentakt.ch/download/';
+
+/** Basis der Update-Quelle; nur https, immer mit «/» am Ende. Ungültige Angabe → klassentakt.ch. */
+function downloadBase(env = process.env.KLASSENTAKT_UPDATE_BASE) {
+  try {
+    const u = new URL(env || DOWNLOAD_BASE);
+    if (u.protocol !== 'https:' || u.search || u.hash) throw new Error();
+    if (!u.pathname.endsWith('/')) u.pathname += '/';
+    return u.href;
+  } catch { return DOWNLOAD_BASE; }
+}
+const BASE = downloadBase();
+const LATEST_URL = BASE + 'latest.json';
+const RELEASES_PAGE = BASE;
+
+/** latest.json prüfen; url (relativ zu /download/) wird absolut und muss auf demselben Server liegen. */
+function parseLatest(info, base = BASE) {
+  if (!info || !info.version || !info.url || !/^[a-f0-9]{64}$/.test(info.sha256 || '')) throw new Error('latest.json unvollständig');
+  if (!/^\d+\.\d+\.\d+$/.test(String(info.version))) throw new Error('latest.json: ungültige Version');
+  const u = new URL(info.url, base);
+  if (u.origin !== new URL(base).origin || !u.pathname.endsWith('.zip')) throw new Error('Unerwartete Download-Adresse');
+  return { ...info, url: u.href };
+}
 
 let busy = false;
 let declined = null; // «Später» gilt bis zum nächsten App-Start
@@ -47,10 +68,7 @@ function installProblem() {
 async function fetchLatest() {
   const res = await net.fetch(LATEST_URL + '?t=' + Date.now(), { cache: 'no-store' });
   if (!res.ok) throw new Error('HTTP ' + res.status);
-  const info = await res.json();
-  if (!info || !info.version || !info.url || !/^[a-f0-9]{64}$/.test(info.sha256 || '')) throw new Error('latest.json unvollständig');
-  if (!/^https:\/\/github\.com\//.test(info.url)) throw new Error('Unerwartete Download-Adresse');
-  return info;
+  return parseLatest(await res.json());
 }
 
 /** zip herunterladen, Fortschritt im Dock, SHA-256 prüfen. */
@@ -190,4 +208,4 @@ async function check(manual) {
 
 function init(winGetter) { getWin = winGetter || getWin; wireIpc(); }
 
-module.exports = { init, check, newer, bundlePath, installProblem, swapScript, LATEST_URL };
+module.exports = { init, check, newer, bundlePath, installProblem, swapScript, downloadBase, parseLatest, LATEST_URL };

@@ -1,0 +1,3 @@
+Version 0.4.1
+- Updates kommen neu direkt von klassentakt.ch.
+- Die Mac-App gibt es jetzt auch für Kolleginnen und Kollegen: Download im Personen-Menü von Klassentakt.

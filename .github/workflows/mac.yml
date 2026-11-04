@@ -19,6 +19,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm test
       - name: App bauen
         env:
           # Sobald diese Secrets in GitHub hinterlegt sind, wird mit Developer ID signiert und von Apple geprüft.
@@ -49,6 +50,8 @@ jobs:
           xcrun stapler validate "$APP" || true
       - name: Fester Download-Name (immer neuste Version)
         run: cp dist/Klassentakt-*[0-9].dmg dist/Klassentakt-mac.dmg
+      - name: latest.json und dist/download/ erzeugen
+        run: node scripts/latest-json.js
       - uses: actions/upload-artifact@v4
         with:
           name: Klassentakt-mac
@@ -56,8 +59,16 @@ jobs:
             dist/*.dmg
             dist/*.zip
           retention-days: 30
-      - name: latest.json erzeugen
-        run: node scripts/latest-json.js
+      # Für https://klassentakt.ch/download/: entpacken und mit ops/download.sh (Web-Repo) hochladen
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Klassentakt-download
+          path: |
+            dist/download/Klassentakt-mac.dmg
+            dist/download/Klassentakt-mac.zip
+            dist/download/latest.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Version lesen und prüfen, ob es das Release schon gibt
         id: ver
         env:

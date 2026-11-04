@@ -1,7 +1,7 @@
 {
   "name": "klassentakt-app",
   "productName": "Klassentakt",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Klassentakt als Mac-App: Planung und Classroom Screen.",
   "author": "Florian Winberger",
   "license": "UNLICENSED",
@@ -10,7 +10,8 @@
   "scripts": {
     "start": "electron .",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js && node --check src/update-preload.js",
-    "dist:mac": "electron-builder --mac --publish never -c.mac.identity=-"
+    "dist:mac": "electron-builder --mac --publish never -c.mac.identity=-",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "electron": "44.7.2",
