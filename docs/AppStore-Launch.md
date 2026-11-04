@@ -5,7 +5,7 @@ Rolle «Apple-Apps». Quellen: `docs/AppStore-Einreichung.md` (Web-Repo), dieses
 ## Entscheide Florian (04.11.2026)
 1. **Mac:** weiter Developer ID über `/download/` für alle. Mac App Store später.
 2. **iPad-App auf Macs mit Apple Silicon:** nicht anbieten («Designed for iPad» in App Store Connect ausschalten).
-3. **4.2:** vor der Einreichung nativ ergänzen, gern mehr als 1–2 Funktionen (Florian nennt Kamera und Beamer). Auswahlliste in Abschnitt 5, Florian wählt aus.
+3. **4.2:** vor der Einreichung nativ ergänzen, gern mehr als 1–2 Funktionen (Florian nennt Kamera und Beamer). Auswahlliste in Abschnitt 5. **Entscheid 04.11.: Paket A** (Nr. 1–5), Einreichung um den 18.11. Paket B (Mitteilungen, Pencil) und Nr. 8–10 kommen später und sind im Ideenboard geparkt.
 4. **Veröffentlichen** nach Apples Freigabe: manuell.
 5. **Support-URL:** vorerst `https://klassentakt.ch/` (noch offen, ob später `/hilfe`).
 
@@ -93,7 +93,7 @@ Status: ✅ vorhanden · 🟡 teilweise · ❌ fehlt
 **Entscheiden:**
 1. ~~Mac-Vertrieb~~ → Developer ID (04.11.)
 2. ~~iPad auf Apple-Silicon-Macs~~ → nein (04.11.)
-3. ~~4.2~~ → nativ ergänzen (04.11.). **Neu: Funktionen aus Abschnitt 5 auswählen.**
+3. ~~4.2~~ → nativ ergänzen (04.11.). → Paket A (04.11.), B später (Ideenboard).
 4. Support-URL: vorerst `https://klassentakt.ch/`; später eigene Seite `/hilfe`? (offen)
 5. ~~Veröffentlichung~~ → manuell (04.11.)
 
@@ -124,7 +124,9 @@ Sortiert nach Empfehlung. Aufwand in Arbeitstagen für Apple-Apps, inklusive Tes
 | 9 | **Kurzbefehle / Siri** (App Intents): «Timer 5 Minuten», «Screen auf den Beamer», «Was habe ich als Nächstes?» | gering–mittel | 1,5 | mittel | Aktionen: Web; profitiert von 8 |
 | 10 | **Offline-Zwischenspeicher**: der heutige Tag (Stundenplan, Abläufe, Screen) bleibt ohne Netz lesbar | hoch bei schlechtem Schul-WLAN (Sperren wie DNSFilter/NetAlerts) | 3 | mittel | grösserer Umbau mit Web-App (Datenhaltung, Konflikte); Risiko für den Termin |
 
-**Empfehlung:**
+**Entscheid Florian 04.11.: Paket A** = Nr. 1–5 (Kamera, Beamer-Ebene, Scanner, Kürzel, Teilen-Menü). Paket B (Nr. 6 Mitteilungen, Nr. 7 Pencil) ist sinnvoll, muss aber gut durchdacht werden. Es liegt mit Nr. 8–10 im Ideenboard und kommt nach der Freigabe als Update.
+
+**Empfehlung (vor dem Entscheid):**
 - **Paket A, vor der Einreichung:** 1, 2, 3, 4, 5. Das sind etwa 6,5 Tage, davon 1–2 Tage Anschlüsse durch die Web-App, die parallel laufen. Für die Prüfung ergibt das eine klar sichtbare Geschichte: Kamera und Scanner, Beamer mit eigener Ebene, Tastatur und Teilen-Menü. Alles ohne neue Profile oder neue Datenarten (die Fotos fallen unter die bereits angegebenen «Benutzerinhalte»).
 - **Paket B, zusätzlich vor der Einreichung oder als Update 1.1:** 6 und 7, etwa 3,5 Tage.
 - **Später:** 8, 9 und 10. Widgets und Kurzbefehle brauchen ein Extension-Ziel und neue Profile. Der Offline-Speicher ist ein grösserer Umbau zusammen mit der Web-App.
