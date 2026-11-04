@@ -47,3 +47,34 @@ final class BridgeTests: XCTestCase {
         XCTAssertFalse(shell.emit("file"))
     }
 }
+
+final class FileTests: XCTestCase {
+    func testTypes() {
+        XCTAssertEqual(FileKinds.types(["pdf"]), [.pdf])
+        XCTAssertEqual(FileKinds.types([]), [.pdf, .image])
+        XCTAssertEqual(FileKinds.types(["unbekannt-xyz"]).isEmpty, false)
+        XCTAssertTrue(FileKinds.types(["any"]).contains(.item))
+    }
+
+    func testMimeAndPreview() {
+        XCTAssertEqual(FileKinds.mime(for: URL(fileURLWithPath: "/t/a.pdf")), "application/pdf")
+        XCTAssertEqual(FileKinds.mime(for: URL(fileURLWithPath: "/t/a.jpg")), "image/jpeg")
+        XCTAssertTrue(FileKinds.previewable(URL(fileURLWithPath: "/t/Wochenplan.pdf")))
+        XCTAssertFalse(FileKinds.previewable(URL(fileURLWithPath: "/t/Termine.ics")))
+    }
+
+    func testShouldDownload() {
+        XCTAssertTrue(FileKinds.shouldDownload(mime: "text/html", disposition: "attachment; filename=a.pdf", canShow: true))
+        XCTAssertTrue(FileKinds.shouldDownload(mime: "text/calendar", disposition: nil, canShow: true))
+        XCTAssertTrue(FileKinds.shouldDownload(mime: "application/x-foo", disposition: nil, canShow: false))
+        XCTAssertFalse(FileKinds.shouldDownload(mime: "text/html", disposition: "inline", canShow: true))
+    }
+
+    func testReadFile() throws {
+        let u = FileManager.default.temporaryDirectory.appendingPathComponent("Wochenplan Test.pdf")
+        try Data("%PDF-1.4".utf8).write(to: u)
+        let f = FileKinds.read(u)
+        XCTAssertEqual(f?.name, "Wochenplan Test.pdf")
+        XCTAssertEqual(f?.type, "application/pdf")
+    }
+}

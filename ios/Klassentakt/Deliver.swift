@@ -46,9 +46,10 @@ extension MainViewController {
         return c
     }
 
-    /// Rückfall: Teilen-Menü (wird mit den Dateien-Funktionen durch eine Vorschau ersetzt).
+    /// Rückfall: Vorschau (PDF/Bild, mit Teilen und Drucken) oder Teilen-Menü.
     func showFallback(_ urls: [URL]) {
-        share(urls, hint: "Diese Klassentakt-Version übernimmt das noch nicht direkt. Sichern oder teilen:")
+        toast("Diese Klassentakt-Version übernimmt das noch nicht direkt – sichern oder teilen")
+        if urls.allSatisfy(FileKinds.previewable) { FilePreview.show(urls, from: topController()) } else { share(urls) }
     }
 
     func share(_ items: [Any], hint: String? = nil, from source: UIView? = nil) {

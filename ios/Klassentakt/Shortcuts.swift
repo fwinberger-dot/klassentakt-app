@@ -13,6 +13,8 @@ enum ShellCommand: String, CaseIterable {
     case beamerPanel = "beamer-panel"
     case camera
     case scan
+    case importFile = "import"
+    case print
     case search
     case reload
 
@@ -27,6 +29,8 @@ enum ShellCommand: String, CaseIterable {
         case .beamerPanel: return "Beamer-Fernbedienung"
         case .camera: return "Dokumentenkamera"
         case .scan: return "Dokument scannen"
+        case .importFile: return "Datei importieren"
+        case .print: return "Drucken"
         case .search: return "Suchen"
         case .reload: return "Neu laden"
         }
@@ -43,6 +47,8 @@ enum ShellCommand: String, CaseIterable {
         case .beamerPanel: return "p"
         case .camera: return "k"
         case .scan: return "s"
+        case .importFile: return "o"
+        case .print: return "p"
         case .search: return "f"
         case .reload: return "r"
         }
@@ -52,7 +58,7 @@ enum ShellCommand: String, CaseIterable {
         switch self {
         case .screenToggle, .timerToggle, .blackToggle, .camera, .quietToggle, .beamerPanel: return [.command, .shift]
         case .phaseNext, .phasePrev, .scan: return [.command, .alternate]
-        case .search, .reload: return .command
+        case .search, .reload, .importFile, .print: return .command
         }
     }
 
@@ -89,6 +95,10 @@ extension MainViewController {
             webView.reload()
         case .scan:
             startScan(nil)
+        case .importFile:
+            pickFiles()
+        case .print:
+            printFromWeb([:], webView: nil)
         case .camera:
             openDocCam()
         case .quietToggle:

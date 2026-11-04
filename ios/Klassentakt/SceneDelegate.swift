@@ -10,16 +10,20 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = main
         window.makeKeyAndVisible()
         self.window = window
-        if let url = connectionOptions.urlContexts.first?.url {
+        let files = connectionOptions.urlContexts.map(\.url).filter(\.isFileURL)
+        if !files.isEmpty { main.openExternal(files) }
+        if let url = connectionOptions.urlContexts.first(where: { !$0.url.isFileURL })?.url {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { main.handleDeepLink(url) }
         }
     }
 
-    // klassentakt://auth?code=… (Rückkehr vom Login im Browser)
+    // klassentakt://auth?code=… (Rückkehr vom Login im Browser) oder Datei aus der Dateien-App / AirDrop
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        guard let url = URLContexts.first?.url,
-              let main = window?.rootViewController as? MainViewController else { return }
-        main.handleDeepLink(url)
+        guard let main = window?.rootViewController as? MainViewController else { return }
+        let urls = URLContexts.map(\.url)
+        let files = urls.filter(\.isFileURL)
+        if !files.isEmpty { main.openExternal(files) }
+        urls.filter { !$0.isFileURL }.forEach(main.handleDeepLink)
     }
 }
 

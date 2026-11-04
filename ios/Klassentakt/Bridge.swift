@@ -8,10 +8,12 @@ import WebKit
 final class Shell: NSObject, WKScriptMessageHandler {
     static let handlerName = "kt"
     /// Was die App kann. Die Web-App darf ihre Knöpfe danach ein- und ausblenden.
-    static let features = ["beamer-extern", "shortcuts", "scan", "camera", "beamer-layer"]
+    static let features = ["beamer-extern", "shortcuts", "scan", "camera", "beamer-layer", "share", "print", "files"]
 
     /// Nachrichten der Web-App (Name, Nutzlast, absendendes WebView).
     var onSend: ((String, [String: Any], WKWebView?) -> Void)?
+    /// Eine Seite hört neu auf ein Ereignis (z. B. 'file' → wartende Dateien abgeben).
+    var onListen: ((String) -> Void)?
     private var listeners: [String: [Weak<WKWebView>]] = [:]
 
     // MARK: Script
@@ -96,6 +98,7 @@ final class Shell: NSObject, WKScriptMessageHandler {
         var a = (listeners[name] ?? []).filter { $0.value != nil }
         if !a.contains(where: { $0.value === wv }) { a.append(Weak(wv)) }
         listeners[name] = a
+        onListen?(name)
     }
 
     private func unlisten(_ name: String, _ wv: WKWebView?) {

@@ -18,6 +18,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     /// Streifen hinter der Statusleiste (Uhr, Akku): nimmt die Farbe der Kopfzeile der Seite an.
     private let topBar = UIView()
     var beamerPill: BeamerPill?
+    var pendingFiles: [(OutFile, String)] = []
+    lazy var downloads = DownloadHandler(host: self)
     private var topIsDark = false
 
     // MARK: Aufbau
@@ -38,6 +40,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.userContentController.add(WeakScriptHandler(self), name: "ktTop")
         config.userContentController.add(shell, name: Shell.handlerName)
         shell.onSend = { [weak self] name, payload, wv in self?.handleShell(name, payload, from: wv) }
+        shell.onListen = { [weak self] name in if name == "file" { self?.flushPendingFiles() } }
 
         topBar.backgroundColor = .white
         topBar.translatesAutoresizingMaskIntoConstraints = false
@@ -79,6 +82,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         ])
 
         installBeamerPill()
+        installDrop(on: view)
+        if let p = beamerPill { installDrop(on: p) }
         view.bringSubviewToFront(toastLabel)
         webView.load(URLRequest(url: Self.startURL))
     }
@@ -178,6 +183,12 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
             }
             if let b = payload["black"] as? Bool { Beamer.shared.setBlack(b) }
             if let q = payload["quiet"] as? Bool { l.setQuiet(q, ask: topController()) }
+        case "share":
+            shareFromWeb(payload)
+        case "print":
+            printFromWeb(payload, webView: wv)
+        case "pickFiles":
+            pickFiles(types: payload["types"] as? [String] ?? ["pdf", "image"], multiple: payload["multiple"] as? Bool ?? true)
         case "beamerPanel":
             openBeamerRemote()
         case "scan":
@@ -191,6 +202,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        // <a download> (Export als PDF, ICS, JSON …) → Download → Teilen-Menü
+        if navigationAction.shouldPerformDownload { decisionHandler(.download); return }
         let url = navigationAction.request.url
         guard let scheme = url?.scheme?.lowercased() else { decisionHandler(.allow); return }
         if scheme == "about" || scheme == "file" || scheme == "blob" || scheme == "data" { decisionHandler(.allow); return }
@@ -209,6 +222,23 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     }
 
     func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { shell.reset(webView) }
+
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        let http = navigationResponse.response as? HTTPURLResponse
+        let dl = FileKinds.shouldDownload(mime: navigationResponse.response.mimeType,
+                                          disposition: http?.value(forHTTPHeaderField: "Content-Disposition"),
+                                          canShow: navigationResponse.canShowMIMEType)
+        decisionHandler(dl ? .download : .allow)
+    }
+
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        download.delegate = downloads
+    }
+
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        download.delegate = downloads
+    }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         let ns = error as NSError
@@ -232,6 +262,12 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         let fromApp = Self.isApp(webView.url)
 
         if Self.isGoogleStart(url) || Self.isGoogleAuth(url) { startGoogleLogin(); return nil }
+
+        // Datei in neuem Fenster (blob:/data:, z. B. PDF-Export mit target=_blank) → Vorschau/Teilen statt leerem Fenster
+        if navigationAction.shouldPerformDownload || ["blob", "data"].contains(url?.scheme?.lowercased() ?? "") {
+            webView.startDownload(using: navigationAction.request) { [weak self] d in d.delegate = self?.downloads }
+            return nil
+        }
 
         // Classroom Screen → Beamer oder iPad-Vollbild
         if fromApp && (Self.isScreen(url) || blank) {
