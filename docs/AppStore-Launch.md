@@ -2,6 +2,13 @@
 
 Rolle «Apple-Apps». Quellen: `docs/AppStore-Einreichung.md` (Web-Repo), dieses Repo (`ios/`, `src/`, `build/`, Branch `apple-login`), Notizen von Server und Web-App, App Review Guidelines. Code ist dafür nicht geändert worden.
 
+## Entscheide Florian (04.11.2026)
+1. **Mac:** weiter Developer ID über `/download/` für alle. Mac App Store später.
+2. **iPad-App auf Macs mit Apple Silicon:** nicht anbieten («Designed for iPad» in App Store Connect ausschalten).
+3. **4.2:** vor der Einreichung nativ ergänzen, gern mehr als 1–2 Funktionen (Florian nennt Kamera und Beamer). Auswahlliste in Abschnitt 5, Florian wählt aus.
+4. **Veröffentlichen** nach Apples Freigabe: manuell.
+5. **Support-URL:** vorerst `https://klassentakt.ch/` (noch offen, ob später `/hilfe`).
+
 **Kurz:**
 - **iPad** zuerst in den App Store, und zwar so schnell wie möglich nach dem Umzug.
 - **Mac** bleibt vorerst bei Developer ID über `/download/`, der Mac App Store kommt als zweiter Schritt.
@@ -58,7 +65,7 @@ Status: ✅ vorhanden · 🟡 teilweise · ❌ fehlt
 | Screenshots | iPad 13" 2752 × 2064 (oder 2064 × 2752), 1–10 Stück. ✅ 6 Stück in `shots/appstore/`, mit erfundenen Namen. Apple-Login-Knopf auf der Anmeldeseite noch nachführen. | 16:10, z.B. 2880 × 1800 oder 1440 × 900, 1–10 Stück. ❌ |
 | Optional | App-Vorschau-Video (Beamer zeigen, hilft bei 4.2) | – |
 | Texte (DE) | Name (30 Zeichen), Untertitel (30), Werbetext (170), Beschreibung (4000), Stichwörter (100), «Was ist neu». ✅ im Projekt-Doc «Klassentakt_AppStore_Eintrag», Apple-Login ergänzen | gleich, Mac-spezifisch ergänzen |
-| URLs | Support `https://klassentakt.ch/` (oder eine Kontaktseite), Datenschutz `https://klassentakt.ch/datenschutz`, Marketing optional | gleich |
+| URLs | Support `https://klassentakt.ch/` (Entscheid vorläufig), Datenschutz `https://klassentakt.ch/datenschutz`, Marketing optional | gleich |
 | Kategorie | Bildung (primär), Produktivität (sekundär) | gleich (`public.app-category.education` steht schon) |
 | Altersfreigabe, App Privacy, Export | siehe oben | siehe oben |
 | Prüfung | Kontakt (Name, Tel., E-Mail), Demo-Konto, Notizen inkl. Beamer und Konto löschen | gleich |
@@ -75,19 +82,20 @@ Status: ✅ vorhanden · 🟡 teilweise · ❌ fehlt
 | **Fr 06.11.** | Apple-Login gegen staging (TestFlight-Build aus dem Branch, wenn freigegeben). Optional native Kleinigkeit gegen 4.2 (Teilen-Menü / Kürzel). | iPad am Beamer testen (TestFlight). Entscheide unten. |
 | **Sa/So 07./08.11.** | Umzug, nur Bereitschaft, keine Builds | Umzug. Danach Demo-Konto auf klassentakt.ch, Key über `/admin/setup` live |
 | **Mo 09.11.** | `apple-login` mergen (mit Freigabe), Build 1.0.0 (2) → TestFlight, letzter Test gegen live: Login (E-Mail, Google, Apple), Konto löschen mit einem Testkonto, Beamer | App Store Connect: Eintrag ausfüllen (Texte, Screenshots, Privacy, Alter, Demo-Konto, Notizen), Build auswählen |
-| **Di 10.11.** | Bereitschaft für Rückfragen der Prüfung | **Zur Prüfung einreichen** (iPad). Prüfung dauert meist 1–3 Tage |
-| **ab ~13.11.** | Je nach Prüfung: Nachbesserung. Danach MAS-Entscheid vorbereiten | Freigabe «manuell veröffentlichen» |
+| **ab Di 10.11.** | Ausgewählte native Funktionen aus Abschnitt 5 bauen, je Funktion ein TestFlight-Build | testet jede Funktion auf TestFlight im Unterricht |
+| **Einreichung** | – | Hängt von der Auswahl ab: Paket A (Abschnitt 5) ≈ 6 Arbeitstage → Einreichung um den **18.11.**; mit Paket B ≈ 10–11 Tage → um den **24.11.** |
+| **+1–3 Tage** | Bereitschaft für Rückfragen der Prüfung, Nachbesserung | Freigabe → **manuell veröffentlichen** |
 
 ---
 
 ## Für Florian: gesammelte Liste
 
-**Entscheiden (bitte als Auswahl beantworten):**
-1. Mac-Vertrieb: **A** Developer ID über `/download/` behalten, MAS frühestens nach dem iPad (Empfehlung) · **B** MAS jetzt parallel bauen
-2. iPad-App auf Macs mit Apple Silicon: **A** ausschalten (Empfehlung) · **B** erlauben
-3. Gegen 4.2 vor der ersten Einreichung: **A** 1–2 kleine native Funktionen (Teilen-Menü für Export, Tastatur-Kürzel), etwa ein Tag · **B** ohne, nur gute Prüf-Notizen und Video, nachbessern bei Ablehnung
-4. Support-URL: **A** `https://klassentakt.ch/` · **B** eigene Seite `/hilfe` (Web-App/Server)
-5. Veröffentlichung nach Freigabe: **A** manuell (Empfehlung) · **B** automatisch
+**Entscheiden:**
+1. ~~Mac-Vertrieb~~ → Developer ID (04.11.)
+2. ~~iPad auf Apple-Silicon-Macs~~ → nein (04.11.)
+3. ~~4.2~~ → nativ ergänzen (04.11.). **Neu: Funktionen aus Abschnitt 5 auswählen.**
+4. Support-URL: vorerst `https://klassentakt.ch/`; später eigene Seite `/hilfe`? (offen)
+5. ~~Veröffentlichung~~ → manuell (04.11.)
 
 **Klicken / tun:**
 1. Apple-Portal «Sign in with Apple»: Schritte 1–6 im Server-Bericht, danach Key über `/admin/setup` (staging, am Umzugstag live).
@@ -96,3 +104,30 @@ Status: ✅ vorhanden · 🟡 teilweise · ❌ fehlt
 4. iPad am echten Beamer testen (TestFlight) und Fehler melden.
 5. App Store Connect: App-Eintrag anlegen (falls nicht vorhanden), Texte aus dem Projekt-Doc, 6 Screenshots, App Privacy, Altersfreigabe, Kontakt für die Prüfung; Build auswählen; einreichen.
 6. **Sicherheit:** Die Schlüssel in `~/Downloads/klassentakt-signatur/` (.p12, .p8, Passwort-Datei) in den Schlüsselbund oder Passwortmanager verschieben und den Ordner löschen.
+
+---
+
+## 5. Native iPad-Funktionen gegen 4.2 – Auswahlliste (noch nichts gebaut)
+
+Sortiert nach Empfehlung. Aufwand in Arbeitstagen für Apple-Apps, inklusive TestFlight-Test. **Web** heisst: Die Rolle Web-App muss einen kleinen Anschluss in `web/index.html` bauen (Brücke `window.klassentaktShell` + Nachricht an die App). Wirkung auf 4.2 bedeutet: Wie klar zeigt die Funktion der Prüfung, dass die App mehr ist als die Website?
+
+| # | Funktion | Nutzen im Unterricht | Aufwand | 4.2 | Abhängig |
+|---|---|---|---|---|---|
+| 1 | **Dokumentenkamera nativ** (AVFoundation): Live-Bild der iPad-Kamera direkt auf dem Beamer, Zoom mit zwei Fingern, Einfrieren (Standbild, während das iPad weiter bewegt wird), Drehen, Taschenlampe; Foto in die Lektion übernehmen | hoch: Heft, Arbeitsblatt oder Experiment ohne Visualizer zeigen | 2 | hoch | Beamer-Szene vorhanden; Foto-Ablage: Web |
+| 2 | **Beamer-Szene ausbauen**: eigene Ebene auf dem Beamer mit Timer, Ruhe-Ampel (Mikrofon), «Bildschirm schwarz» bzw. Fokus (Klasse schaut nach vorn), Hinweis und Auswahl beim Verbinden (HDMI/AirPlay), iPad bleibt Fernbedienung | hoch: Kern der App im Unterricht | 2 | hoch | Timer- und Ruhe-Zustand: Web (Brücke) |
+| 3 | **Tafelbild/Arbeitsblatt scannen** (VisionKit-Dokumentenscanner): Seiten automatisch zuschneiden und entzerren, als PDF oder Bild an die Lektion hängen | hoch: Tafelbild für Abwesende, Arbeitsblätter digital | 1 | hoch | Upload in die Lektion: Web (Datei-Upload gibt es schon) |
+| 4 | **Tastatur-Kürzel** (Magic Keyboard, ⌘-Übersicht): Beamer an/aus, nächste Phase, Timer starten/stoppen, Bildschirm schwarz, Suche | mittel: schneller vorne am Pult | 0,5 | mittel | Aktionen: Web (Brücke) |
+| 5 | **Teilen-Menü und Dateien**: Wochenplan/Lektion als PDF oder Kalender (ICS) über das iOS-Teilen-Menü (AirDrop, Mail, Dateien), AirPrint, Dateien aus der Dateien-App oder per Drag & Drop importieren | mittel: Wochenplan an Kolleginnen, Eltern, Drucker | 1 | mittel | Export gibt es im Web; Übergabe an die App: Web |
+| 6 | **Mitteilungen zum Lektionsbeginn** (lokale Mitteilungen aus dem Stundenplan, kein Push-Server): «In 5 Min.: Mathematik 5a, Zimmer 12» und Ende der Lektion | mittel–hoch: Pausen, Wechsel zwischen Zimmern | 1,5 | mittel–hoch | Stundenplan an die App: Web. Datenschutz: nur auf dem Gerät |
+| 7 | **Apple Pencil auf dem Screen** (PencilKit): auf dem Beamer-Inhalt zeichnen und markieren, Ebene löschen oder als Bild speichern | mittel–hoch: ersetzt die Wandtafel über dem Arbeitsblatt | 2 | hoch | keine (liegt über dem WebView) |
+| 8 | **Widgets** (WidgetKit): «Heute» und «Nächste Lektion» auf dem Home-Bildschirm und dem Sperrbildschirm | mittel: Überblick ohne App zu öffnen | 2 | hoch | neues Extension-Ziel, App Group, neue Profile (Florian); Daten: Web |
+| 9 | **Kurzbefehle / Siri** (App Intents): «Timer 5 Minuten», «Screen auf den Beamer», «Was habe ich als Nächstes?» | gering–mittel | 1,5 | mittel | Aktionen: Web; profitiert von 8 |
+| 10 | **Offline-Zwischenspeicher**: der heutige Tag (Stundenplan, Abläufe, Screen) bleibt ohne Netz lesbar | hoch bei schlechtem Schul-WLAN (Sperren wie DNSFilter/NetAlerts) | 3 | mittel | grösserer Umbau mit Web-App (Datenhaltung, Konflikte); Risiko für den Termin |
+
+**Empfehlung:**
+- **Paket A, vor der Einreichung:** 1, 2, 3, 4, 5. Das sind etwa 6,5 Tage, davon 1–2 Tage Anschlüsse durch die Web-App, die parallel laufen. Für die Prüfung ergibt das eine klar sichtbare Geschichte: Kamera und Scanner, Beamer mit eigener Ebene, Tastatur und Teilen-Menü. Alles ohne neue Profile oder neue Datenarten (die Fotos fallen unter die bereits angegebenen «Benutzerinhalte»).
+- **Paket B, zusätzlich vor der Einreichung oder als Update 1.1:** 6 und 7, etwa 3,5 Tage.
+- **Später:** 8, 9 und 10. Widgets und Kurzbefehle brauchen ein Extension-Ziel und neue Profile. Der Offline-Speicher ist ein grösserer Umbau zusammen mit der Web-App.
+
+In den Prüf-Notizen und im Vorschau-Video zeigen wir die gewählten Funktionen ausdrücklich, ebenso in den Screenshots, zum Beispiel einen mit Kamera auf dem Beamer.
+
