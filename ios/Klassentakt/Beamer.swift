@@ -14,6 +14,31 @@ final class Beamer {
     private(set) var isExternalConnected = false
     weak var host: MainViewController?
     private var modal: ScreenViewController?
+    private(set) var isBlack = false
+    private var blackCover: BlackCoverViewController?
+
+    var stateForWeb: [String: Any] { ["open": screenWebView != nil, "extern": isExternalConnected, "black": isBlack] }
+
+    /// «Bildschirm schwarz»: auf dem Beamer; ohne Beamer (oder bei Bildschirm-Synchronisierung) auf dem iPad.
+    func toggleBlack() { setBlack(!isBlack) }
+
+    func setBlack(_ on: Bool) {
+        isBlack = on
+        externalController.setBlack(on && isExternalConnected)
+        if on && !isExternalConnected, blackCover == nil, let host = host {
+            let c = BlackCoverViewController { [weak self] in self?.setBlack(false) }
+            blackCover = c
+            var top: UIViewController = host
+            while let p = top.presentedViewController { top = p }
+            top.present(c, animated: true)
+        } else if !on || isExternalConnected, let c = blackCover {
+            blackCover = nil
+            c.dismiss(animated: true)
+        }
+        if isExternalConnected { host?.toast(on ? "Beamer schwarz – ⌘⇧D zeigt wieder" : "Beamer zeigt wieder") }
+    }
+
+    func toggleTimer() { host?.toast("Zuerst den Classroom Screen öffnen (⌘⇧B)") }
 
     /// Neues Screen-Fenster der Web-App übernehmen.
     func show(_ webView: WKWebView) {
@@ -36,6 +61,7 @@ final class Beamer {
 
     func externalConnected(_ connected: Bool) {
         isExternalConnected = connected
+        if isBlack { setBlack(true) }
         place()
         host?.beamerChanged()
     }
@@ -61,6 +87,7 @@ final class Beamer {
 /// Inhalt des externen Bildschirms.
 final class BeamerViewController: UIViewController {
     private let placeholder = UILabel()
+    private let black = UIView()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -77,6 +104,18 @@ final class BeamerViewController: UIViewController {
             placeholder.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             placeholder.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.8),
         ])
+        black.backgroundColor = .black
+        black.isHidden = true
+        black.frame = view.bounds
+        black.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(black)
+    }
+
+    func setBlack(_ on: Bool) {
+        loadViewIfNeeded()
+        view.bringSubviewToFront(black)
+        UIView.animate(withDuration: 0.25) { self.black.alpha = on ? 1 : 0 } completion: { _ in self.black.isHidden = !on }
+        if on { black.isHidden = false }
     }
 
     func setScreen(_ webView: WKWebView?) {
@@ -88,7 +127,25 @@ final class BeamerViewController: UIViewController {
         wv.frame = view.bounds
         wv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(wv)
+        view.bringSubviewToFront(black)
     }
+}
+
+/// Schwarzer Vorhang auf dem iPad selbst (kein Beamer erweitert). Tippen beendet ihn.
+final class BlackCoverViewController: UIViewController {
+    private let onEnd: () -> Void
+    init(onEnd: @escaping () -> Void) { self.onEnd = onEnd; super.init(nibName: nil, bundle: nil); modalPresentationStyle = .overFullScreen; modalTransitionStyle = .crossDissolve }
+    required init?(coder: NSCoder) { fatalError() }
+    override var prefersStatusBarHidden: Bool { true }
+    override var prefersHomeIndicatorAutoHidden: Bool { true }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        view.accessibilityLabel = "Bildschirm schwarz. Tippen zum Beenden."
+        view.isAccessibilityElement = true
+        view.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(end)))
+    }
+    @objc private func end() { onEnd() }
 }
 
 /// Screen auf dem iPad selbst (kein Beamer angeschlossen). Geschlossen wird über das ✕ des Screens.

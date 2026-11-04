@@ -10,7 +10,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     // Google NICHT: Google blockiert Logins in App-Fenstern → Login über ASWebAuthenticationSession.
     static let loginHosts = ["jobnavigator.ch", "login.microsoftonline.com", "login.live.com", "login.microsoft.com"]
 
-    private var webView: WKWebView!
+    private(set) var webView: WKWebView!
+    let shell = Shell()
     private let toastLabel = PaddingLabel()
     private var authSession: ASWebAuthenticationSession?
     private var popup: UIViewController?
@@ -31,9 +32,11 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.mediaTypesRequiringUserActionForPlayback = []
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
         config.applicationNameForUserAgent = "KlassentaktApp/\(Self.appVersion)"
-        config.userContentController.addUserScript(Self.bridgeScript())
+        config.userContentController.addUserScript(Shell.script(version: Self.appVersion))
         config.userContentController.addUserScript(Self.topColorScript())
         config.userContentController.add(WeakScriptHandler(self), name: "ktTop")
+        config.userContentController.add(shell, name: Shell.handlerName)
+        shell.onSend = { [weak self] name, payload, wv in self?.handleShell(name, payload, from: wv) }
 
         topBar.backgroundColor = .white
         topBar.translatesAutoresizingMaskIntoConstraints = false
@@ -79,19 +82,6 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     static var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-    }
-
-    /// window.klassentaktShell – die Web-App erkennt daran die App (nur auf klassentakt.ch).
-    static func bridgeScript() -> WKUserScript {
-        let js = """
-        (function(){
-          var h = location.hostname;
-          if (h !== 'klassentakt.ch' && !h.endsWith('.klassentakt.ch')) return;
-          if (window.klassentaktShell) return;
-          window.klassentaktShell = Object.freeze({ isShell: true, platform: 'ios', shellVersion: '\(appVersion)', features: Object.freeze(['beamer-extern']) });
-        })();
-        """
-        return WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true)
     }
 
     /// Meldet die Hintergrundfarbe ganz oben auf der Seite (Kopfzeile) an die App –
@@ -158,6 +148,17 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     func beamerChanged() {
         let js = "window.dispatchEvent(new CustomEvent('klassentakt-beamer', {detail: {open: \(Beamer.shared.screenWebView != nil), extern: \(Beamer.shared.isExternalConnected)}}))"
         webView?.evaluateJavaScript(js, completionHandler: nil)
+        shell.emit("beamer", Beamer.shared.stateForWeb)
+    }
+
+    /// Nachrichten der Web-App über window.klassentaktShell.send (Vertrag: docs/Bruecke-PaketA.md).
+    func handleShell(_ name: String, _ payload: [String: Any], from wv: WKWebView?) {
+        switch name {
+        case "command":
+            if let id = payload["id"] as? String, let c = ShellCommand(rawValue: id) { run(c) }
+        default:
+            break
+        }
     }
 
     // MARK: Navigation
@@ -180,6 +181,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         decisionHandler(.cancel)
         if let url = url, ["http", "https", "mailto", "tel"].contains(scheme) { UIApplication.shared.open(url) }
     }
+
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) { shell.reset(webView) }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         let ns = error as NSError

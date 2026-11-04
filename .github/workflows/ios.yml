@@ -19,12 +19,12 @@ jobs:
       - name: Für den Simulator bauen (ohne Signatur)
         working-directory: ios
         run: |
+          set -o pipefail
           xcodebuild -project Klassentakt.xcodeproj -scheme Klassentakt -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO build | tail -40
           ls build/Build/Products/Debug-iphonesimulator/
-      - name: Im iPad-Simulator starten und Screenshots machen
-        working-directory: ios
+      - name: iPad-Simulator wählen
         run: |
           UDID=$(xcrun simctl list devices available -j | python3 -c "
           import json,sys
@@ -33,7 +33,18 @@ jobs:
           c.sort(key=lambda x: ('Pro' not in x['name'], x['name']))
           print(c[0]['udid'])")
           echo "Simulator: $UDID"
-          xcrun simctl boot "$UDID"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+      - name: Tests (XCTest)
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild -project Klassentakt.xcodeproj -scheme Klassentakt -configuration Debug \
+            -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO test 2>&1 | grep -E "Test Case|error:|Executed|TEST (SUCCEEDED|FAILED)|\*\*" | tail -80
+      - name: Im iPad-Simulator starten und Screenshots machen
+        working-directory: ios
+        run: |
+          xcrun simctl boot "$UDID" || true
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl status_bar "$UDID" override --time 9:41 || true
           xcrun simctl ui "$UDID" appearance light || true
@@ -54,6 +65,8 @@ jobs:
   testflight:
     # Signierter Build für TestFlight. Läuft nur, wenn das iPad-Zertifikat als Secret hinterlegt ist.
     needs: ios
+    # Nur von main – ein Lauf von einem Arbeits-Branch lädt nie zu TestFlight hoch.
+    if: github.ref == 'refs/heads/main'
     runs-on: macos-latest
     env:
       IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
