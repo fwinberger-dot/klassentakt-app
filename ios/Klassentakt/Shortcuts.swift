@@ -9,6 +9,8 @@ enum ShellCommand: String, CaseIterable {
     case phasePrev = "phase-prev"
     case timerToggle = "timer-toggle"
     case blackToggle = "black-toggle"
+    case quietToggle = "quiet-toggle"
+    case beamerPanel = "beamer-panel"
     case camera
     case scan
     case search
@@ -21,6 +23,8 @@ enum ShellCommand: String, CaseIterable {
         case .phasePrev: return "Vorherige Phase"
         case .timerToggle: return "Timer starten/stoppen"
         case .blackToggle: return "Bildschirm schwarz"
+        case .quietToggle: return "Ruhe-Ampel an/aus"
+        case .beamerPanel: return "Beamer-Fernbedienung"
         case .camera: return "Dokumentenkamera"
         case .scan: return "Dokument scannen"
         case .search: return "Suchen"
@@ -35,6 +39,8 @@ enum ShellCommand: String, CaseIterable {
         case .phasePrev: return UIKeyCommand.inputLeftArrow
         case .timerToggle: return "t"
         case .blackToggle: return "d"
+        case .quietToggle: return "a"
+        case .beamerPanel: return "p"
         case .camera: return "k"
         case .scan: return "s"
         case .search: return "f"
@@ -44,7 +50,7 @@ enum ShellCommand: String, CaseIterable {
 
     var modifiers: UIKeyModifierFlags {
         switch self {
-        case .screenToggle, .timerToggle, .blackToggle, .camera: return [.command, .shift]
+        case .screenToggle, .timerToggle, .blackToggle, .camera, .quietToggle, .beamerPanel: return [.command, .shift]
         case .phaseNext, .phasePrev, .scan: return [.command, .alternate]
         case .search, .reload: return .command
         }
@@ -85,6 +91,11 @@ extension MainViewController {
             startScan(nil)
         case .camera:
             openDocCam()
+        case .quietToggle:
+            let l = Beamer.shared.layer
+            l.setQuiet(!l.quietOn, ask: topController())
+        case .beamerPanel:
+            openBeamerRemote()
         case .blackToggle:
             Beamer.shared.toggleBlack()
             shell.emit("beamer", Beamer.shared.stateForWeb)

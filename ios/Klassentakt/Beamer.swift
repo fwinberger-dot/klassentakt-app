@@ -18,9 +18,22 @@ final class Beamer {
     private var blackCover: BlackCoverViewController?
 
     private(set) var cameraView: UIView?
+    let layer = BeamerLayer()
+    /// Beamer kam, bevor das Hauptfenster bereit war → Auswahl beim nächsten viewDidAppear.
+    var pendingPrompt = false
 
     var stateForWeb: [String: Any] {
-        ["open": screenWebView != nil, "extern": isExternalConnected, "black": isBlack, "camera": cameraView != nil]
+        var s: [String: Any] = ["open": screenWebView != nil, "extern": isExternalConnected, "black": isBlack, "camera": cameraView != nil]
+        layer.stateForWeb.forEach { s[$0.key] = $0.value }
+        return s
+    }
+
+    /// Timer/Ampel/«schwarz» geändert → Beamer, Knopf auf dem iPad, Fernbedienung, Web-App.
+    func layerChanged() {
+        externalController.showLayer(layer, extern: isExternalConnected)
+        host?.beamerPill?.refresh()
+        NotificationCenter.default.post(name: .beamerLayerChanged, object: nil)
+        if let h = host, h.shell.isListening("beamer") { h.shell.emit("beamer", stateForWeb) }
     }
 
     /// Dokumentenkamera auf den Beamer (über den Screen, unter «schwarz»). nil = wieder weg.
@@ -47,9 +60,14 @@ final class Beamer {
             c.dismiss(animated: true)
         }
         if isExternalConnected { host?.toast(on ? "Beamer schwarz – ⌘⇧D zeigt wieder" : "Beamer zeigt wieder") }
+        layerChanged()
     }
 
-    func toggleTimer() { host?.toast("Zuerst den Classroom Screen öffnen (⌘⇧B)") }
+    func toggleTimer() {
+        layer.toggleTimer()
+        let st = layer.timer.state()
+        host?.toast(st == .running ? "Timer läuft (\(BeamerTimer.format(layer.timer.remaining())))" : st == .paused ? "Timer angehalten" : "Timer")
+    }
 
     /// Neues Screen-Fenster der Web-App übernehmen.
     func show(_ webView: WKWebView) {
@@ -71,8 +89,17 @@ final class Beamer {
     }
 
     func externalConnected(_ connected: Bool) {
+        let wasConnected = isExternalConnected
         isExternalConnected = connected
         if isBlack { setBlack(true) }
+        layerChanged()
+        if connected && !wasConnected {
+            if let h = host, h.view.window != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { h.beamerConnectedPrompt() }
+            } else {
+                pendingPrompt = true
+            }
+        }
         place()
         host?.beamerChanged()
     }
@@ -100,6 +127,8 @@ final class BeamerViewController: UIViewController {
     private let placeholder = UILabel()
     private let black = UIView()
     private weak var camera: UIView?
+    private let timerBadge = TimerBadge()
+    private let quietLight = QuietLight()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -116,11 +145,35 @@ final class BeamerViewController: UIViewController {
             placeholder.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             placeholder.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.8),
         ])
+        for v in [timerBadge, quietLight] as [UIView] {
+            v.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(v)
+        }
+        NSLayoutConstraint.activate([
+            timerBadge.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 32),
+            timerBadge.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -32),
+            quietLight.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -32),
+            quietLight.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -32),
+        ])
         black.backgroundColor = .black
         black.isHidden = true
         black.frame = view.bounds
         black.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(black)
+    }
+
+    func showLayer(_ l: BeamerLayer, extern: Bool) {
+        loadViewIfNeeded()
+        timerBadge.show(l.timer)
+        quietLight.show(l.quietOn, l.quiet.level)
+    }
+
+    /// Ebenen von unten nach oben: Screen, Kamera, Timer/Ampel, schwarz.
+    private func restack() {
+        if let c = camera { view.bringSubviewToFront(c) }
+        view.bringSubviewToFront(timerBadge)
+        view.bringSubviewToFront(quietLight)
+        view.bringSubviewToFront(black)
     }
 
     func setCamera(_ v: UIView?) {
@@ -131,7 +184,7 @@ final class BeamerViewController: UIViewController {
         v.frame = view.bounds
         v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(v)
-        view.bringSubviewToFront(black)
+        restack()
     }
 
     func setBlack(_ on: Bool) {
@@ -150,8 +203,7 @@ final class BeamerViewController: UIViewController {
         wv.frame = view.bounds
         wv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(wv)
-        if let c = camera { view.bringSubviewToFront(c) }
-        view.bringSubviewToFront(black)
+        restack()
     }
 }
 

@@ -17,6 +17,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     private var popup: UIViewController?
     /// Streifen hinter der Statusleiste (Uhr, Akku): nimmt die Farbe der Kopfzeile der Seite an.
     private let topBar = UIView()
+    var beamerPill: BeamerPill?
     private var topIsDark = false
 
     // MARK: Aufbau
@@ -77,7 +78,18 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
             toastLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
         ])
 
+        installBeamerPill()
+        view.bringSubviewToFront(toastLabel)
         webView.load(URLRequest(url: Self.startURL))
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        Beamer.shared.layerChanged()
+        if Beamer.shared.pendingPrompt {
+            Beamer.shared.pendingPrompt = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.beamerConnectedPrompt() }
+        }
     }
 
     static var appVersion: String {
@@ -159,6 +171,15 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         case "camera":
             let isOpen = topController() is DocCamViewController
             if (payload["open"] as? Bool ?? true) != isOpen { openDocCam() }
+        case "overlay":
+            let l = Beamer.shared.layer
+            if let t = payload["timer"] as? [String: Any], let a = t["action"] as? String {
+                l.timerAction(a, seconds: (t["seconds"] as? NSNumber)?.doubleValue)
+            }
+            if let b = payload["black"] as? Bool { Beamer.shared.setBlack(b) }
+            if let q = payload["quiet"] as? Bool { l.setQuiet(q, ask: topController()) }
+        case "beamerPanel":
+            openBeamerRemote()
         case "scan":
             startScan((payload["format"] as? String).flatMap(ScanFormat.init(rawValue:)))
         default:
@@ -329,7 +350,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     }
 }
 
-final class PaddingLabel: UILabel {
+class PaddingLabel: UILabel {
     var insets = UIEdgeInsets(top: 9, left: 18, bottom: 9, right: 18)
     override func drawText(in rect: CGRect) { super.drawText(in: rect.inset(by: insets)) }
     override var intrinsicContentSize: CGSize {
