@@ -39,7 +39,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         NSMicrophoneUsageDescription: Klassentakt braucht das Mikrofon für den Ruhe-Timer.
-        NSCameraUsageDescription: Klassentakt braucht die Kamera für die Dokumentenkamera.
+        NSCameraUsageDescription: Klassentakt braucht die Kamera, um Arbeitsblätter und Tafelbilder zu scannen und als Dokumentenkamera auf dem Beamer zu zeigen. Die Bilder bleiben auf dem iPad, bis du sie in eine Lektion übernimmst.
         CFBundleURLTypes:
           - CFBundleURLName: ch.klassentakt.app
             CFBundleURLSchemes: [klassentakt]

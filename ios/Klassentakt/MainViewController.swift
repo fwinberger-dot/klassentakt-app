@@ -156,6 +156,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         switch name {
         case "command":
             if let id = payload["id"] as? String, let c = ShellCommand(rawValue: id) { run(c) }
+        case "scan":
+            startScan((payload["format"] as? String).flatMap(ScanFormat.init(rawValue:)))
         default:
             break
         }
@@ -268,12 +270,6 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         a.addAction(UIAlertAction(title: "Abbrechen", style: .cancel) { _ in completionHandler(false) })
         a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler(true) })
         topController().present(a, animated: true)
-    }
-
-    private func topController() -> UIViewController {
-        var c: UIViewController = self
-        while let p = c.presentedViewController { c = p }
-        return c
     }
 
     // MARK: Google-Login über den Browser
