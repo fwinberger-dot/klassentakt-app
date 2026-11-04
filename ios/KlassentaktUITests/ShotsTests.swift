@@ -104,7 +104,7 @@ final class ShotsTests: XCTestCase {
         launch(["-ktRun", "demo-export"])
         pause(3)
         shot("5-dateien-1-export-vorschau")
-        if tap(app.buttons["Teilen"], wait: 4) || tap(app.buttons["Share"], wait: 2) {
+        if tap(app.buttons["previewShare"], wait: 4) {
             pause(2)
             shot("5-dateien-2-teilen-menue")
         }

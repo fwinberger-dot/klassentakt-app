@@ -1,6 +1,6 @@
 import UIKit
 import WebKit
-import QuickLook
+import PDFKit
 import UniformTypeIdentifiers
 
 /// Teilen-Menü, AirPrint, Import aus der Dateien-App und per Drag & Drop.
@@ -47,22 +47,91 @@ enum FileKinds {
     }
 }
 
-/// Vorschau (QuickLook) mit Teilen, Drucken und Markieren.
-final class FilePreview: NSObject, QLPreviewControllerDataSource {
+/// Vorschau für PDF und Bilder mit Teilen und Drucken (läuft in der App, nicht als fremder Prozess).
+final class FilePreview: UIViewController {
     private let urls: [URL]
-    private static var current: FilePreview?
-    init(_ urls: [URL]) { self.urls = urls }
+    init(_ urls: [URL]) { self.urls = urls; super.init(nibName: nil, bundle: nil) }
+    required init?(coder: NSCoder) { fatalError() }
 
     static func show(_ urls: [URL], from host: UIViewController) {
-        let p = FilePreview(urls)
-        current = p
-        let q = QLPreviewController()
-        q.dataSource = p
-        host.present(q, animated: true)
+        let nav = UINavigationController(rootViewController: FilePreview(urls))
+        nav.modalPresentationStyle = .pageSheet
+        host.present(nav, animated: true)
     }
 
-    func numberOfPreviewItems(in controller: QLPreviewController) -> Int { urls.count }
-    func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { urls[index] as NSURL }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .secondarySystemBackground
+        title = urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) Dateien"
+        navigationItem.leftBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) })
+        let share = UIBarButtonItem(image: UIImage(systemName: "square.and.arrow.up"), primaryAction: UIAction { [weak self] _ in self?.share() })
+        share.accessibilityLabel = "Teilen"
+        share.accessibilityIdentifier = "previewShare"
+        let print = UIBarButtonItem(image: UIImage(systemName: "printer"), primaryAction: UIAction { [weak self] _ in self?.printAll() })
+        print.accessibilityLabel = "Drucken"
+        print.accessibilityIdentifier = "previewPrint"
+        navigationItem.rightBarButtonItems = [share, print]
+        shareItem = share
+
+        let content: UIView
+        if let pdf = urls.first(where: { $0.pathExtension.lowercased() == "pdf" }), let doc = PDFDocument(url: pdf) {
+            let v = PDFView()
+            v.document = doc
+            v.autoScales = true
+            v.displayMode = .singlePageContinuous
+            v.backgroundColor = .secondarySystemBackground
+            content = v
+        } else {
+            let scroll = UIScrollView()
+            let stack = UIStackView(arrangedSubviews: urls.compactMap { u in
+                guard let img = UIImage(contentsOfFile: u.path) else { return nil }
+                let iv = UIImageView(image: img)
+                iv.contentMode = .scaleAspectFit
+                iv.heightAnchor.constraint(equalTo: iv.widthAnchor, multiplier: img.size.height / max(1, img.size.width)).isActive = true
+                return iv
+            })
+            stack.axis = .vertical
+            stack.spacing = 16
+            stack.translatesAutoresizingMaskIntoConstraints = false
+            scroll.addSubview(stack)
+            NSLayoutConstraint.activate([
+                stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
+                stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -16),
+                stack.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor, constant: 16),
+                stack.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor, constant: -16),
+            ])
+            content = scroll
+        }
+        content.accessibilityIdentifier = "previewContent"
+        content.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            content.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            content.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+        ])
+    }
+
+    private weak var shareItem: UIBarButtonItem?
+
+    private func share() {
+        let vc = UIActivityViewController(activityItems: urls, applicationActivities: nil)
+        vc.popoverPresentationController?.barButtonItem = shareItem
+        present(vc, animated: true)
+    }
+
+    private func printAll() {
+        let pc = UIPrintInteractionController.shared
+        let info = UIPrintInfo(dictionary: nil)
+        info.jobName = title ?? "Klassentakt"
+        info.outputType = urls.allSatisfy { $0.pathExtension.lowercased() != "pdf" } ? .photo : .general
+        pc.printInfo = info
+        pc.printFormatter = nil
+        pc.printingItem = nil
+        pc.printingItems = urls
+        pc.present(animated: true)
+    }
 }
 
 final class DownloadHandler: NSObject, WKDownloadDelegate {
@@ -97,7 +166,7 @@ final class DownloadHandler: NSObject, WKDownloadDelegate {
 extension MainViewController: UIDocumentPickerDelegate, UIDropInteractionDelegate {
     // MARK: Export der Web-App → Teilen-Menü
 
-    /// Fertige Datei aus der Web-App anbieten: Vorschau (PDF/Bild) oder Teilen-Menü (ICS, …).
+    /// Fertige Datei aus der Web-App anbieten: Vorschau mit Teilen/Drucken (PDF/Bild) oder Teilen-Menü (ICS, …).
     func offer(_ url: URL) {
         if FileKinds.previewable(url) { FilePreview.show([url], from: topController()) } else { share([url]) }
     }

@@ -102,7 +102,7 @@ Web → App: `send('command', {id: 'black-toggle'})` löst jedes Kürzel auch au
 | App → Web | `file` | `{source: 'import'\|'open'\|'drop', name, type, size, file: File}` |
 
 Was die App tut, schon ohne Anschluss:
-- **Exporte** über `<a download>`, `blob:` und `data:`, auch mit `target=_blank`, sowie Antworten mit `Content-Disposition: attachment` oder `text/calendar` lädt die App herunter. PDF und Bilder erscheinen als Vorschau (Teilen, Drucken, Markieren), alles andere (ICS, JSON, .klassentakt, HTML) direkt im Teilen-Menü. **Damit gehen die heutigen Exporte schon ohne Web-Änderung.**
+- **Exporte** über `<a download>`, `blob:` und `data:`, auch mit `target=_blank`, sowie Antworten mit `Content-Disposition: attachment` oder `text/calendar` lädt die App herunter. PDF und Bilder erscheinen als Vorschau (Teilen, Drucken), alles andere (ICS, JSON, .klassentakt, HTML) direkt im Teilen-Menü. **Damit gehen die heutigen Exporte schon ohne Web-Änderung.**
 - **`window.print()`** wird auf AirPrint umgeleitet (bisher tat es im WKWebView nichts). ⌘P druckt den Planer.
 - **«Öffnen in» Klassentakt** aus Dateien und AirDrop ist für PDF, Bilder, ICS und `.klassentakt` angemeldet. `.klassentakt` ist als eigener Dateityp `ch.klassentakt.paket` erklärt.
 - **Drag & Drop:** Ablagen der Web-App (`drop`-Handler mit `dataTransfer.files`) bekommen Dateien direkt von WebKit, wie im Browser. Die App nimmt zusätzlich Drops auf ihre eigenen Flächen an (Knopf «Beamer», Statusleisten-Streifen) und gibt sie als `file` (`source: 'drop'`) weiter.

@@ -59,6 +59,8 @@ jobs:
               test-without-building 2>&1 | grep -E "Test Case|error:|TEST (SUCCEEDED|FAILED)" || true
             kill -INT $REC; wait $REC || true
           done
+          # Simulator lief quer, Screenshots kommen hochkant → aufrecht drehen
+          for f in shots/*.png; do sips -r 270 "$f" >/dev/null; done
           ls -la shots
       - name: Screenshots aus den Testergebnissen (falls direkt schreiben nicht ging)
         if: always()

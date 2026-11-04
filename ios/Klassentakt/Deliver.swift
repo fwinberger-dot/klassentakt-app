@@ -46,7 +46,7 @@ extension MainViewController {
         return c
     }
 
-    /// Rückfall: Vorschau (PDF/Bild, mit Teilen und Drucken) oder Teilen-Menü.
+    /// Rückfall: Vorschau mit Teilen und Drucken (PDF/Bild) oder Teilen-Menü.
     func showFallback(_ urls: [URL]) {
         toast("Diese Klassentakt-Version übernimmt das noch nicht direkt – sichern oder teilen")
         if urls.allSatisfy(FileKinds.previewable) { FilePreview.show(urls, from: topController()) } else { share(urls) }
