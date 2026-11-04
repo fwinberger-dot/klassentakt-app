@@ -61,6 +61,17 @@ jobs:
           done
           # Simulator lief quer, Screenshots kommen hochkant → aufrecht drehen
           for f in shots/*.png; do sips -r 270 "$f" >/dev/null; done
+          # sips lässt den eXIf-Block mit der alten Drehung stehen → Browser zeigt sonst hochkant
+          python3 - shots/*.png <<'PY'
+          import struct, sys
+          for p in sys.argv[1:]:
+              d = open(p, 'rb').read(); out = d[:8]; i = 8
+              while i < len(d):
+                  n, t = struct.unpack('>I4s', d[i:i+8])
+                  if t != b'eXIf': out += d[i:i+12+n]
+                  i += 12 + n
+              open(p, 'wb').write(out)
+          PY
           # Videos gleich drehen (90° gegen den Uhrzeiger wie sips -r 270)
           command -v ffmpeg >/dev/null || brew install ffmpeg
           for f in shots/*.mp4; do
