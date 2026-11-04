@@ -196,7 +196,7 @@ extension MainViewController {
         let open = Beamer.shared.screenWebView != nil
         let h = BeamerHint(text: open ? "Beamer verbunden – zeigt den Classroom Screen" : "Beamer verbunden",
                            action: open ? nil : "Classroom Screen öffnen") { [weak self] in self?.openScreen() }
-        h.show(in: view, seconds: open ? 3 : 8)
+        h.show(in: view, seconds: TestMode.on ? 30 : open ? 3 : 8)
     }
 }
 

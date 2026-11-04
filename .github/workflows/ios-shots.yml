@@ -59,10 +59,10 @@ jobs:
               test-without-building 2>&1 | grep -E "Test Case|error:|TEST (SUCCEEDED|FAILED)" || true
             kill -INT $REC; wait $REC || true
           done
-          # Simulator lief quer, Screenshots kommen hochkant → aufrecht drehen
-          for f in shots/*.png; do sips -r 270 "$f" >/dev/null; done
-          # sips lässt den eXIf-Block mit der alten Drehung stehen → Browser zeigt sonst hochkant
-          python3 - shots/*.png <<'PY'
+          # Screenshots: Pixel hochkant + eXIf «Orientation 8». Erst eXIf weg (sonst rechnet sips die Drehung mit
+          # und Browser drehen nochmals), dann die Pixel aufrecht ins Querformat drehen. sips schreibt wieder
+          # einen eXIf-Block → danach nochmals entfernen.
+          cat > "$RUNNER_TEMP/noexif.py" <<'PY'
           import struct, sys
           for p in sys.argv[1:]:
               d = open(p, 'rb').read(); out = d[:8]; i = 8
@@ -72,6 +72,9 @@ jobs:
                   i += 12 + n
               open(p, 'wb').write(out)
           PY
+          python3 "$RUNNER_TEMP/noexif.py" shots/*.png
+          for f in shots/*.png; do sips -r 270 "$f" >/dev/null; done
+          python3 "$RUNNER_TEMP/noexif.py" shots/*.png
           # Videos gleich drehen (90° gegen den Uhrzeiger wie sips -r 270)
           command -v ffmpeg >/dev/null || brew install ffmpeg
           for f in shots/*.mp4; do
