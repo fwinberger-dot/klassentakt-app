@@ -46,3 +46,33 @@ final class ScanTests: XCTestCase {
         XCTAssertEqual(try? Data(contentsOf: u!), Data([1, 2, 3]))
     }
 }
+
+final class DocCamTests: XCTestCase {
+    func testZoomClamp() {
+        XCTAssertEqual(DocCam.clampZoom(0.5, max: 5), 1)
+        XCTAssertEqual(DocCam.clampZoom(3, max: 5), 3)
+        XCTAssertEqual(DocCam.clampZoom(9, max: 5), 5)
+        XCTAssertEqual(DocCam.clampZoom(2, max: 0.5), 1)
+        XCTAssertEqual(DocCam.zoomLimit(120), 10)
+        XCTAssertEqual(DocCam.zoomLimit(0), 1)
+    }
+
+    func testRotation() {
+        XCTAssertEqual(DocCam.orientation(quarterTurns: 0), .up)
+        XCTAssertEqual(DocCam.orientation(quarterTurns: 1), .right)
+        XCTAssertEqual(DocCam.orientation(quarterTurns: 2), .down)
+        XCTAssertEqual(DocCam.orientation(quarterTurns: 3), .left)
+        XCTAssertEqual(DocCam.orientation(quarterTurns: 5), .right)
+        XCTAssertEqual(DocCam.orientation(quarterTurns: -1), .left)
+    }
+
+    func testZoomLabelSwiss() {
+        XCTAssertEqual(DocCam.zoomLabel(1), "1.0×")
+        XCTAssertEqual(DocCam.zoomLabel(2.54), "2.5×")
+    }
+
+    func testVideoOrientationFollowsInterface() {
+        XCTAssertEqual(DocCam.videoOrientation(.landscapeLeft), .landscapeLeft)
+        XCTAssertEqual(DocCam.videoOrientation(.unknown), .portrait)
+    }
+}

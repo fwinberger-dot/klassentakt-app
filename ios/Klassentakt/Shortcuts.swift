@@ -9,6 +9,7 @@ enum ShellCommand: String, CaseIterable {
     case phasePrev = "phase-prev"
     case timerToggle = "timer-toggle"
     case blackToggle = "black-toggle"
+    case camera
     case scan
     case search
     case reload
@@ -20,6 +21,7 @@ enum ShellCommand: String, CaseIterable {
         case .phasePrev: return "Vorherige Phase"
         case .timerToggle: return "Timer starten/stoppen"
         case .blackToggle: return "Bildschirm schwarz"
+        case .camera: return "Dokumentenkamera"
         case .scan: return "Dokument scannen"
         case .search: return "Suchen"
         case .reload: return "Neu laden"
@@ -33,6 +35,7 @@ enum ShellCommand: String, CaseIterable {
         case .phasePrev: return UIKeyCommand.inputLeftArrow
         case .timerToggle: return "t"
         case .blackToggle: return "d"
+        case .camera: return "k"
         case .scan: return "s"
         case .search: return "f"
         case .reload: return "r"
@@ -41,7 +44,7 @@ enum ShellCommand: String, CaseIterable {
 
     var modifiers: UIKeyModifierFlags {
         switch self {
-        case .screenToggle, .timerToggle, .blackToggle: return [.command, .shift]
+        case .screenToggle, .timerToggle, .blackToggle, .camera: return [.command, .shift]
         case .phaseNext, .phasePrev, .scan: return [.command, .alternate]
         case .search, .reload: return .command
         }
@@ -80,6 +83,8 @@ extension MainViewController {
             webView.reload()
         case .scan:
             startScan(nil)
+        case .camera:
+            openDocCam()
         case .blackToggle:
             Beamer.shared.toggleBlack()
             shell.emit("beamer", Beamer.shared.stateForWeb)

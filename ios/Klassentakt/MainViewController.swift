@@ -156,6 +156,9 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         switch name {
         case "command":
             if let id = payload["id"] as? String, let c = ShellCommand(rawValue: id) { run(c) }
+        case "camera":
+            let isOpen = topController() is DocCamViewController
+            if (payload["open"] as? Bool ?? true) != isOpen { openDocCam() }
         case "scan":
             startScan((payload["format"] as? String).flatMap(ScanFormat.init(rawValue:)))
         default:

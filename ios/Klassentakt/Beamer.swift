@@ -17,7 +17,18 @@ final class Beamer {
     private(set) var isBlack = false
     private var blackCover: BlackCoverViewController?
 
-    var stateForWeb: [String: Any] { ["open": screenWebView != nil, "extern": isExternalConnected, "black": isBlack] }
+    private(set) var cameraView: UIView?
+
+    var stateForWeb: [String: Any] {
+        ["open": screenWebView != nil, "extern": isExternalConnected, "black": isBlack, "camera": cameraView != nil]
+    }
+
+    /// Dokumentenkamera auf den Beamer (über den Screen, unter «schwarz»). nil = wieder weg.
+    func showCamera(_ v: UIView?) {
+        cameraView = v
+        externalController.setCamera(v)
+        host?.beamerChanged()
+    }
 
     /// «Bildschirm schwarz»: auf dem Beamer; ohne Beamer (oder bei Bildschirm-Synchronisierung) auf dem iPad.
     func toggleBlack() { setBlack(!isBlack) }
@@ -88,6 +99,7 @@ final class Beamer {
 final class BeamerViewController: UIViewController {
     private let placeholder = UILabel()
     private let black = UIView()
+    private weak var camera: UIView?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -111,6 +123,17 @@ final class BeamerViewController: UIViewController {
         view.addSubview(black)
     }
 
+    func setCamera(_ v: UIView?) {
+        loadViewIfNeeded()
+        if camera !== v { camera?.removeFromSuperview() }
+        camera = v
+        guard let v = v else { return }
+        v.frame = view.bounds
+        v.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(v)
+        view.bringSubviewToFront(black)
+    }
+
     func setBlack(_ on: Bool) {
         loadViewIfNeeded()
         view.bringSubviewToFront(black)
@@ -127,6 +150,7 @@ final class BeamerViewController: UIViewController {
         wv.frame = view.bounds
         wv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(wv)
+        if let c = camera { view.bringSubviewToFront(c) }
         view.bringSubviewToFront(black)
     }
 }

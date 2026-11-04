@@ -8,7 +8,7 @@ import WebKit
 final class Shell: NSObject, WKScriptMessageHandler {
     static let handlerName = "kt"
     /// Was die App kann. Die Web-App darf ihre Knöpfe danach ein- und ausblenden.
-    static let features = ["beamer-extern", "shortcuts", "scan"]
+    static let features = ["beamer-extern", "shortcuts", "scan", "camera"]
 
     /// Nachrichten der Web-App (Name, Nutzlast, absendendes WebView).
     var onSend: ((String, [String: Any], WKWebView?) -> Void)?
