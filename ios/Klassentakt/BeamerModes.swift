@@ -56,7 +56,9 @@ final class LiveMirror {
 
     private func throttle() {
         let p = ProcessInfo.processInfo
-        link?.preferredFramesPerSecond = Self.throttled(fps, thermal: p.thermalState, lowPower: p.isLowPowerModeEnabled)
+        let f = Self.throttled(fps, thermal: p.thermalState, lowPower: p.isLowPowerModeEnabled)
+        // Im UI-Test (langsamer CI-Simulator) knapp halten, sonst wird die App nie «ruhig» für XCUITest.
+        link?.preferredFramesPerSecond = TestMode.on ? min(f, 5) : f
     }
 
     func stop() {
