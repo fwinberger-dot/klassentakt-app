@@ -27,18 +27,41 @@ final class LiveMirror {
     private var link: CADisplayLink?
     private var shot: UIView?
 
+    private let fps: Int
+    private var observers: [NSObjectProtocol] = []
+
     init(source: UIView, target: UIView, fps: Int) {
         self.source = source
         self.target = target
+        self.fps = fps
         let l = CADisplayLink(target: Tick(self), selector: #selector(Tick.fire))
-        l.preferredFramesPerSecond = fps
         l.add(to: .main, forMode: .common)
         link = l
+        throttle()
+        let nc = NotificationCenter.default
+        for n in [ProcessInfo.thermalStateDidChangeNotification, Notification.Name.NSProcessInfoPowerStateDidChange] {
+            observers.append(nc.addObserver(forName: n, object: nil, queue: .main) { [weak self] _ in self?.throttle() })
+        }
     }
 
-    deinit { link?.invalidate() }
+    deinit { stop() }
+
+    /// Bildrate nach Wärme und Stromsparmodus: warm oder Stromsparen → halb, sehr heiss → 4 Bilder/s.
+    static func throttled(_ fps: Int, thermal: ProcessInfo.ThermalState, lowPower: Bool) -> Int {
+        var f = fps
+        if thermal == .serious || lowPower { f = fps / 2 }
+        if thermal == .critical { f = 4 }
+        return max(4, min(f, fps))
+    }
+
+    private func throttle() {
+        let p = ProcessInfo.processInfo
+        link?.preferredFramesPerSecond = Self.throttled(fps, thermal: p.thermalState, lowPower: p.isLowPowerModeEnabled)
+    }
 
     func stop() {
+        observers.forEach { NotificationCenter.default.removeObserver($0) }
+        observers = []
         link?.invalidate()
         link = nil
         shot?.removeFromSuperview()

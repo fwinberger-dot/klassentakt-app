@@ -11,6 +11,15 @@ final class BeamerTests: XCTestCase {
         XCTAssertEqual(LiveMirror.fit(.zero, into: CGSize(width: 10, height: 10)), 1)
     }
 
+    func testFrameRateThrottles() {
+        XCTAssertEqual(LiveMirror.throttled(20, thermal: .nominal, lowPower: false), 20)
+        XCTAssertEqual(LiveMirror.throttled(20, thermal: .fair, lowPower: false), 20)
+        XCTAssertEqual(LiveMirror.throttled(20, thermal: .serious, lowPower: false), 10)
+        XCTAssertEqual(LiveMirror.throttled(20, thermal: .nominal, lowPower: true), 10)
+        XCTAssertEqual(LiveMirror.throttled(20, thermal: .critical, lowPower: false), 4)
+        XCTAssertEqual(LiveMirror.throttled(6, thermal: .serious, lowPower: true), 4)
+    }
+
     func testModeNamesForWeb() {
         XCTAssertEqual(BeamerMode.extend.rawValue, "erweitern")
         XCTAssertEqual(BeamerMode.mirror.rawValue, "spiegeln")
