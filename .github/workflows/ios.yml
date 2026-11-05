@@ -9,6 +9,13 @@ on:
       runner:
         description: 'macOS-Runner (bei Engpass auf arm64 z. B. macos-15-intel)'
         default: macos-latest
+      testflight:
+        description: 'Auch zu TestFlight hochladen (nur auf Anweisung der Leitung; kein Einreichen zur Prüfung)'
+        type: boolean
+        default: false
+      server:
+        description: 'Server der Web-App im TestFlight-Build (klassentakt.ch oder z. B. staging.klassentakt.ch)'
+        default: klassentakt.ch
 
 jobs:
   ios:
@@ -69,9 +76,9 @@ jobs:
   testflight:
     # Signierter Build für TestFlight. Läuft nur, wenn das iPad-Zertifikat als Secret hinterlegt ist.
     needs: ios
-    # Nur von main – ein Lauf von einem Arbeits-Branch lädt nie zu TestFlight hoch.
-    if: github.ref == 'refs/heads/main'
-    runs-on: macos-latest
+    # Von main – oder von Hand mit dem Schalter testflight=true. Ein Push auf einen Arbeits-Branch lädt nie hoch.
+    if: github.ref == 'refs/heads/main' || inputs.testflight == true
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
     env:
       IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
     steps:
@@ -106,7 +113,9 @@ jobs:
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Klassentakt.xcarchive" \
             CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=Z28KL39TYK CODE_SIGN_IDENTITY="Apple Distribution" \
             PROVISIONING_PROFILE_SPECIFIER="Klassentakt App Store" CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            KT_SERVER="${{ inputs.server || 'klassentakt.ch' }}" \
             archive | tail -30
+          echo "Build ${{ github.run_number }} gegen ${{ inputs.server || 'klassentakt.ch' }}"
       - name: Zu TestFlight hochladen
         if: steps.chk.outputs.ok == 'ja'
         working-directory: ios

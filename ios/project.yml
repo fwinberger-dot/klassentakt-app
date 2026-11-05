@@ -9,6 +9,8 @@ settings:
     MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
+    # Server der Web-App. App Store immer klassentakt.ch; Test-Builds z.B. staging.klassentakt.ch (nur *.klassentakt.ch).
+    KT_SERVER: klassentakt.ch
 targets:
   Klassentakt:
     type: application
@@ -25,6 +27,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSRequiresIPhoneOS: true
+        KTServer: $(KT_SERVER)
         ITSAppUsesNonExemptEncryption: false
         UILaunchScreen:
           UIColorName: LaunchBackground

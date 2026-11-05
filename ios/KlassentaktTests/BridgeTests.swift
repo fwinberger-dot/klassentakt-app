@@ -11,6 +11,16 @@ final class BridgeTests: XCTestCase {
         XCTAssertTrue(Shell.features(camera: false, scan: false).contains("editing"))
     }
 
+    func testServerOnlyKlassentakt() {
+        XCTAssertEqual(MainViewController.serverName(nil), "klassentakt.ch")
+        XCTAssertEqual(MainViewController.serverName("staging.klassentakt.ch"), "staging.klassentakt.ch")
+        XCTAssertEqual(MainViewController.serverName(" Staging.Klassentakt.ch "), "staging.klassentakt.ch")
+        XCTAssertEqual(MainViewController.serverName("evil.example.com"), "klassentakt.ch")
+        XCTAssertEqual(MainViewController.serverName("klassentakt.ch.evil.com"), "klassentakt.ch")
+        XCTAssertEqual(MainViewController.serverName("a/b.klassentakt.ch"), "klassentakt.ch")
+        XCTAssertEqual(MainViewController.server, "klassentakt.ch") // Standard-Build
+    }
+
     func testRefIsShortenedAndOptional() {
         XCTAssertNil(MainViewController.ref([:]))
         XCTAssertNil(MainViewController.ref(["ref": ""]))

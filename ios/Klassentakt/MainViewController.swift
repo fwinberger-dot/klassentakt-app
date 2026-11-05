@@ -5,7 +5,15 @@ import AuthenticationServices
 /// Hauptfenster: lädt klassentakt.ch. Klassentakt und Login-Anbieter bleiben in der App,
 /// alle anderen Links öffnen Safari.
 final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, ASWebAuthenticationPresentationContextProviding {
-    static let startURL = URL(string: "https://klassentakt.ch/")!
+    /// Server aus der Build-Einstellung KT_SERVER. Nur klassentakt.ch oder eine Subdomain, sonst klassentakt.ch.
+    static let server: String = serverName(Bundle.main.object(forInfoDictionaryKey: "KTServer") as? String)
+    static let startURL = URL(string: "https://\(server)/")!
+
+    static func serverName(_ raw: String?) -> String {
+        let h = (raw ?? "").trimmingCharacters(in: .whitespaces).lowercased()
+        let ok = h == "klassentakt.ch" || (h.hasSuffix(".klassentakt.ch") && h.range(of: "^[a-z0-9.-]+$", options: .regularExpression) != nil)
+        return ok ? h : "klassentakt.ch"
+    }
     static let appHosts = ["klassentakt.ch"]
     // Google NICHT: Google blockiert Logins in App-Fenstern → Login über ASWebAuthenticationSession.
     static let loginHosts = ["jobnavigator.ch", "login.microsoftonline.com", "login.live.com", "login.microsoft.com"]
@@ -326,6 +334,39 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         if let p = popup { popup = nil; p.dismiss(animated: true) }
     }
 
+    // MARK: Test-Server mit Basic-Auth (z.B. staging)
+
+    /// Zugang zum Test-Server: tippt man selbst ein, gilt nur, solange die App läuft. Nie im Build oder Repo.
+    private static var basicCredential: URLCredential?
+
+    func webView(_ webView: WKWebView, didReceive challenge: URLAuthenticationChallenge,
+                 completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        let ps = challenge.protectionSpace
+        guard ps.authenticationMethod == NSURLAuthenticationMethodHTTPBasic, ps.host == Self.server, Self.server != "klassentakt.ch" else {
+            completionHandler(.performDefaultHandling, nil); return
+        }
+        if challenge.previousFailureCount == 0, let c = Self.basicCredential { completionHandler(.useCredential, c); return }
+        askBasic(host: ps.host, wrong: challenge.previousFailureCount > 0, completionHandler)
+    }
+
+    private func askBasic(host: String, wrong: Bool, _ done: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        // Beim ersten Laden ist das Fenster evtl. noch nicht da.
+        guard view.window != nil else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.askBasic(host: host, wrong: wrong, done) }
+            return
+        }
+        let a = UIAlertController(title: "Test-Server", message: (wrong ? "Zugang stimmt nicht. " : "") + "\(host) ist geschützt. Zugang eingeben – gilt, bis die App beendet wird.", preferredStyle: .alert)
+        a.addTextField { $0.placeholder = "Benutzer"; $0.autocapitalizationType = .none; $0.autocorrectionType = .no; $0.textContentType = .username }
+        a.addTextField { $0.placeholder = "Passwort"; $0.isSecureTextEntry = true; $0.textContentType = .password }
+        a.addAction(UIAlertAction(title: "Abbrechen", style: .cancel) { _ in done(.cancelAuthenticationChallenge, nil) })
+        a.addAction(UIAlertAction(title: "Anmelden", style: .default) { [weak a] _ in
+            let c = URLCredential(user: a?.textFields?[0].text ?? "", password: a?.textFields?[1].text ?? "", persistence: .forSession)
+            Self.basicCredential = c
+            done(.useCredential, c)
+        })
+        topController().present(a, animated: true)
+    }
+
     // MARK: Kamera/Mikrofon nur für Klassentakt
 
     func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
@@ -355,7 +396,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     /// Kann klassentakt.ch den Login schon an die App zurückgeben? (404 = Server-Teil fehlt noch)
     private func appLoginSupported(_ done: @escaping (Bool) -> Void) {
-        var req = URLRequest(url: URL(string: "https://klassentakt.ch/auth/app/redeem?probe=1")!)
+        var req = URLRequest(url: URL(string: "https://\(Self.server)/auth/app/redeem?probe=1")!)
         req.cachePolicy = .reloadIgnoringLocalCacheData
         URLSession.shared.dataTask(with: req) { _, resp, _ in
             let code = (resp as? HTTPURLResponse)?.statusCode ?? 404
@@ -375,7 +416,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
                 self.topController().present(a, animated: true)
                 return
             }
-            let start = URL(string: "https://klassentakt.ch/auth/google/start?next=%2F&app=1")!
+            let start = URL(string: "https://\(Self.server)/auth/google/start?next=%2F&app=1")!
             let session = ASWebAuthenticationSession(url: start, callbackURLScheme: "klassentakt") { [weak self] url, _ in
                 self?.authSession = nil
                 if let url = url { self?.handleDeepLink(url) }
@@ -399,7 +440,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         guard code.range(of: "^[A-Za-z0-9_-]{16,200}$", options: .regularExpression) != nil else { return }
         var next = c.queryItems?.first { $0.name == "next" }?.value ?? "/"
         if !next.hasPrefix("/") || next.hasPrefix("//") { next = "/" }
-        var r = URLComponents(string: "https://klassentakt.ch/auth/app/redeem")!
+        var r = URLComponents(string: "https://\(Self.server)/auth/app/redeem")!
         r.queryItems = [URLQueryItem(name: "code", value: code), URLQueryItem(name: "next", value: next)]
         if let target = r.url { webView.load(URLRequest(url: target)) }
     }
