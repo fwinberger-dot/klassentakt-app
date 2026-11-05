@@ -161,13 +161,13 @@ extension MainViewController {
         TestModeState.started = true
         if TestMode.beamerPreview { BeamerPreviewWindow.install(in: scene) }
         guard let r = TestMode.run else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+        whenPageLoaded(tries: 25) { [weak self] in
             guard let self = self else { return }
             switch r {
             case "demo-export": if let u = TestMode.demoPDF() { self.offer(u) }
             case "demo-ics": if let u = TestMode.demoICS() { self.offer(u) }
             // Wie das Werkzeug «Dokumentenkamera» im Werkzeugkoffer: Nachricht über die echte Brücke.
-            case "web-open-camera": self.testSendOpenCamera(tries: 20)
+            case "web-open-camera": self.testSendOpenCamera(tries: 10)
             default: if let c = ShellCommand(rawValue: r) { self.run(c) }
             }
         }
@@ -175,6 +175,14 @@ extension MainViewController {
 }
 
 extension MainViewController {
+    /// Befehl erst ausführen, wenn klassentakt.ch geladen ist (sonst geht z.B. der Screen noch nicht auf).
+    func whenPageLoaded(tries: Int, _ then: @escaping () -> Void) {
+        webView.evaluateJavaScript("document.readyState === 'complete' && !!window.klassentaktShell") { [weak self] r, _ in
+            if (r as? Bool) == true || tries <= 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { then() }; return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.whenPageLoaded(tries: tries - 1, then) }
+        }
+    }
+
     /// Wartet, bis die Seite geladen ist und die Brücke hat, dann `open-camera` wie aus dem Werkzeugkoffer.
     func testSendOpenCamera(tries: Int) {
         let js = "(function(){ if (!window.klassentaktShell || document.readyState !== 'complete') return false; klassentaktShell.send('open-camera', {ref: 'test-lektion'}); return true; })()"

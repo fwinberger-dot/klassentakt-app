@@ -83,9 +83,9 @@ final class ShotsTests: XCTestCase {
     // 2 – Beamer: Erweitern mit Bild im Bild, Steuern auf dem iPad, Spiegeln; Kamera als Werkzeug
     func test2Beamer() {
         launch(["-ktBeamerPreview", "-ktRun", "screen-toggle"])
-        let live = app.otherElements["pipLive"]
-        XCTAssertTrue(live.waitForExistence(timeout: 15))
-        pause(4)
+        let live = app.descendants(matching: .any)["pipLive"]
+        XCTAssertTrue(live.waitForExistence(timeout: 30))
+        pause(5)
         shot("2-beamer-1-erweitern-bild-im-bild")
         tap(live)
         pause(2)
