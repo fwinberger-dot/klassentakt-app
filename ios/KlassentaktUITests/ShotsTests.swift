@@ -41,12 +41,12 @@ final class ShotsTests: XCTestCase {
     // 4 – Tastatur-Kürzel
     func test4Kuerzel() {
         launch(["-ktRun", "shortcuts"])
-        XCTAssertTrue(app.navigationBars["Tastatur-Kürzel"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["Tastatur-Kürzel"].waitForExistence(timeout: 40))
         pause()
         shot("4-kuerzel-1-uebersicht")
         app.terminate()
         launch(["-ktRun", "tool-timer"])
-        pause(0.8)
+        _ = app.staticTexts["Zuerst den Classroom Screen öffnen (⌘⇧B)"].waitForExistence(timeout: 40)
         shot("4-kuerzel-2-timer-ohne-screen")
     }
 
@@ -97,7 +97,7 @@ final class ShotsTests: XCTestCase {
         pause(2)
         shot("2-beamer-4-spiegeln-planer")
         tap(app.segmentedControls["pipMode"].buttons["Erweitern"])
-        pause(2)
+        pause(4)
         shot("2-beamer-5-wieder-erweitern")
         app.terminate()
         launch(["-ktBeamerPreview", "-ktRun", "web-open-camera"])

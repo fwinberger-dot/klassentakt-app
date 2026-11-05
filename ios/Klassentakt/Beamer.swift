@@ -149,7 +149,9 @@ final class Beamer {
                 dismissModal()
                 externalController.setScreen(wv) // läuft unsichtbar unter dem Spiegelbild weiter
             }
-            if let w = host?.view.window { mirror = LiveMirror(source: w, target: externalController.mirrorHost, fps: 15) }
+            // Quelle: was gerade vorne auf dem iPad ist (Screen im Vollbild oder der Planer).
+            // Der Schnappschuss des ganzen Fensters erfasst ein Vollbild-Modal nicht zuverlässig.
+            if let src = modal?.view ?? host?.view.window { mirror = LiveMirror(source: src, target: externalController.mirrorHost, fps: 15) }
         }
     }
 
