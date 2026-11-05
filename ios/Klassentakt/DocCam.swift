@@ -389,8 +389,13 @@ final class DocCamViewController: UIViewController {
         UIView.animate(withDuration: 0.08, animations: { self.preview.alpha = 0.3 }) { _ in
             UIView.animate(withDuration: 0.2) { self.preview.alpha = 1 }
         }
+        // Anhang: erst die Kamera schliessen, dann übergeben – sonst schlösse das Schliessen eine Rückfall-Vorschau gleich wieder.
+        if capture {
+            let h = host, r = ref
+            closeCamera { h?.deliver([f], source: "camera", ref: r) }
+            return
+        }
         host?.deliver([f], source: "camera", ref: ref)
-        if capture { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.close() } }
     }
 
     @objc func close() { closeCamera(then: nil) }
