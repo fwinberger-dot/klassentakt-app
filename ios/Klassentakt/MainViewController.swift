@@ -18,6 +18,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     /// Streifen hinter der Statusleiste (Uhr, Akku): nimmt die Farbe der Kopfzeile der Seite an.
     private let topBar = UIView()
     var pendingFiles: [(OutFile, String)] = []
+    private lazy var pip = BeamerPiP(host: self)
     lazy var downloads = DownloadHandler(host: self)
     private var topIsDark = false
 
@@ -84,6 +85,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         ])
 
         installDrop(on: view)
+        pip.isHidden = true
+        view.addSubview(pip)
         view.bringSubviewToFront(toastLabel)
         webView.load(URLRequest(url: Self.startURL))
     }
@@ -160,6 +163,19 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         toastLabel.text = text
         UIView.animate(withDuration: 0.25) { self.toastLabel.alpha = 1 }
         UIView.animate(withDuration: 0.4, delay: 2.6, options: []) { self.toastLabel.alpha = 0 }
+    }
+
+    /// Bild im Bild nach jeder Änderung am Beamer (Modus, Screen auf/zu, verbunden).
+    func refreshPiP() {
+        guard isViewLoaded else { return }
+        view.bringSubviewToFront(pip)
+        view.bringSubviewToFront(toastLabel)
+        pip.refresh()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if !pip.isHidden { pip.keepInside() }
     }
 
     func beamerChanged() {

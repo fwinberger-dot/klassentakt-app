@@ -80,22 +80,31 @@ final class ShotsTests: XCTestCase {
         shot("1-kamera-4-foto-uebernehmen")
     }
 
-    // 2 – Beamer: zeigt den Classroom Screen, Kamera als Werkzeug der Web-App
+    // 2 – Beamer: Erweitern mit Bild im Bild, Steuern auf dem iPad, Spiegeln; Kamera als Werkzeug
     func test2Beamer() {
-        launch(["-ktBeamerPreview"])
-        XCTAssertTrue(app.otherElements["beamerHint"].waitForExistence(timeout: 10))
-        shot("2-beamer-1-verbunden-hinweis")
-        tap(app.buttons["beamerHintOpen"])
+        launch(["-ktBeamerPreview", "-ktRun", "screen-toggle"])
+        let live = app.otherElements["pipLive"]
+        XCTAssertTrue(live.waitForExistence(timeout: 15))
         pause(4)
-        shot("2-beamer-2-screen-auf-beamer")
+        shot("2-beamer-1-erweitern-bild-im-bild")
+        tap(live)
+        pause(2)
+        shot("2-beamer-2-steuern-auf-ipad")
+        tap(app.segmentedControls["screenMode"].buttons["Spiegeln"])
+        pause(2)
+        shot("2-beamer-3-spiegeln")
+        tap(app.buttons["screenToPlanner"])
+        pause(2)
+        shot("2-beamer-4-spiegeln-planer")
+        tap(app.segmentedControls["pipMode"].buttons["Erweitern"])
+        pause(2)
+        shot("2-beamer-5-wieder-erweitern")
         app.terminate()
         launch(["-ktBeamerPreview", "-ktRun", "web-open-camera"])
         XCTAssertTrue(app.otherElements["camPreview"].waitForExistence(timeout: 30))
         pause(2)
-        shot("2-beamer-3-kamera-aus-werkzeugkoffer")
+        shot("2-beamer-6-kamera-aus-werkzeugkoffer")
         tap(app.buttons["camClose"])
-        pause(1.5)
-        shot("2-beamer-4-zurueck-zum-screen")
     }
 
     // 5 – Teilen-Menü und Dateien

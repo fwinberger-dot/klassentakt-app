@@ -2,9 +2,12 @@ import UIKit
 import WebKit
 
 /// Classroom Screen auf dem Beamer:
-/// - Beamer angeschlossen (HDMI/USB-C-Adapter oder AirPlay «Bildschirm erweitern»): Screen läuft dort im Vollbild,
-///   auf dem iPad bleibt die Planung bedienbar.
-/// - Kein Beamer: Screen öffnet sich auf dem iPad im Vollbild mit «Schliessen».
+/// - Beamer angeschlossen (HDMI/USB-C-Adapter oder AirPlay), Modus während der Nutzung umschaltbar:
+///   - erweitern: Screen läuft am Beamer, das iPad zeigt den Planer mit Bild im Bild.
+///     «Steuern»: derselbe Screen kommt gross aufs iPad (in Beamer-Grösse, verkleinert), der Beamer zeigt sein Live-Bild.
+///   - spiegeln: Beamer zeigt das iPad-Bild.
+///   Es gibt immer nur einen Screen (ein WKWebView, ein Zustand) – kopiert wird nur das Bild.
+/// - Kein Beamer: Screen öffnet sich auf dem iPad im Vollbild.
 /// - Solange der Screen offen ist, geht das iPad nicht in den Ruhezustand.
 final class Beamer {
     static let shared = Beamer()
@@ -15,13 +18,19 @@ final class Beamer {
     weak var host: MainViewController?
     private var modal: ScreenViewController?
 
+    private(set) var mode: BeamerMode = .extend
+    /// Screen gross auf dem iPad (erweitern: «Steuern»; spiegeln: Screen statt Planer).
+    private(set) var screenOnIPad = false
+    private var mirror: LiveMirror?
+
     /// Bild der Dokumentenkamera auf dem Beamer (über dem Screen). nil = Kamera zu.
     private(set) var cameraView: UIView?
     /// Beamer kam, bevor das Hauptfenster bereit war → Hinweis beim nächsten viewDidAppear.
     var pendingHint = false
 
     var stateForWeb: [String: Any] {
-        ["open": screenWebView != nil, "extern": isExternalConnected, "camera": cameraView != nil]
+        ["open": screenWebView != nil, "extern": isExternalConnected, "camera": cameraView != nil,
+         "mode": mode.rawValue, "steuern": isExternalConnected && screenOnIPad && screenWebView != nil]
     }
 
     /// Dokumentenkamera auf den Beamer. nil = wieder der Screen.
@@ -37,8 +46,9 @@ final class Beamer {
     func show(_ webView: WKWebView) {
         close()
         screenWebView = webView
+        screenOnIPad = mode == .mirror
         place()
-        if isExternalConnected { host?.toast("Classroom Screen läuft auf dem Beamer") }
+        if isExternalConnected && mode == .extend { host?.toast("Classroom Screen läuft auf dem Beamer") }
         UIApplication.shared.isIdleTimerDisabled = true
         host?.beamerChanged()
     }
@@ -47,15 +57,36 @@ final class Beamer {
         guard let wv = screenWebView else { return }
         wv.removeFromSuperview()
         screenWebView = nil
+        screenOnIPad = false
         externalController.setScreen(nil)
-        if let m = modal { modal = nil; m.dismiss(animated: true) }
+        dismissModal()
+        place()
         UIApplication.shared.isIdleTimerDisabled = false
+        host?.beamerChanged()
+    }
+
+    /// Erweitern ↔ Spiegeln. Beim Spiegeln kommt ein offener Screen aufs iPad (dann sieht man ihn auch vorne).
+    func setMode(_ m: BeamerMode) {
+        guard m != mode else { return }
+        mode = m
+        screenOnIPad = m == .mirror && screenWebView != nil
+        place()
+        host?.beamerChanged()
+        host?.toast(m == .extend ? "Beamer: Erweitern" : "Beamer: Spiegeln – zeigt das iPad")
+    }
+
+    /// Screen gross aufs iPad (true) oder zurück zum Planer (false). Der Beamer läuft weiter.
+    func control(_ on: Bool) {
+        guard screenWebView != nil || !on else { return }
+        screenOnIPad = on
+        place()
         host?.beamerChanged()
     }
 
     func externalConnected(_ connected: Bool) {
         let wasConnected = isExternalConnected
         isExternalConnected = connected
+        if connected != wasConnected { screenOnIPad = !connected || mode == .mirror }
         place()
         host?.beamerChanged()
         if connected && !wasConnected {
@@ -67,20 +98,55 @@ final class Beamer {
         }
     }
 
-    /// Screen dorthin setzen, wo er hingehört (Beamer oder iPad-Vollbild).
+    /// Screen und Live-Bilder dorthin setzen, wo sie hingehören.
     private func place() {
-        guard let wv = screenWebView else { externalController.setScreen(nil); return }
-        if isExternalConnected {
-            if let m = modal { modal = nil; m.dismiss(animated: true) }
-            externalController.setScreen(wv)
-        } else {
-            externalController.setScreen(nil)
-            guard modal == nil, let host = host else { return }
-            let m = ScreenViewController(webView: wv)
-            m.modalPresentationStyle = .fullScreen
-            modal = m
-            host.present(m, animated: true)
+        mirror?.stop()
+        mirror = nil
+        defer {
+            externalController.showMirror(mirror != nil)
+            modal?.refresh()
+            host?.refreshPiP()
         }
+        let wv = screenWebView
+        guard isExternalConnected else {
+            externalController.setScreen(nil)
+            if let wv = wv { presentModal(wv, fixed: nil) } else { dismissModal() }
+            return
+        }
+        switch mode {
+        case .extend:
+            if let wv = wv, screenOnIPad {
+                // Gleiche Grösse wie am Beamer → nichts bricht um, der Beamer zeigt 1:1 dasselbe.
+                presentModal(wv, fixed: externalController.view.bounds.size)
+                mirror = LiveMirror(source: wv, target: externalController.mirrorHost, fps: 20)
+            } else {
+                dismissModal()
+                externalController.setScreen(wv)
+            }
+        case .mirror:
+            if let wv = wv, screenOnIPad {
+                presentModal(wv, fixed: nil)
+            } else {
+                dismissModal()
+                externalController.setScreen(wv) // läuft unsichtbar unter dem Spiegelbild weiter
+            }
+            if let w = host?.view.window { mirror = LiveMirror(source: w, target: externalController.mirrorHost, fps: 15) }
+        }
+    }
+
+    private func presentModal(_ wv: WKWebView, fixed: CGSize?) {
+        if let m = modal { m.adopt(fixed: fixed); return }
+        guard let host = host else { return }
+        let m = ScreenViewController(webView: wv, fixed: fixed)
+        m.modalPresentationStyle = .fullScreen
+        modal = m
+        (host.presentedViewController == nil ? host : host.topController()).present(m, animated: true)
+    }
+
+    private func dismissModal() {
+        guard let m = modal else { return }
+        modal = nil
+        m.dismiss(animated: true)
     }
 }
 
@@ -89,6 +155,8 @@ final class Beamer {
 final class BeamerViewController: UIViewController {
     private let placeholder = UILabel()
     private weak var camera: UIView?
+    /// Live-Bild (Steuern auf dem iPad oder Spiegeln). Über dem Screen, unter der Kamera.
+    let mirrorHost = UIView()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -105,6 +173,24 @@ final class BeamerViewController: UIViewController {
             placeholder.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             placeholder.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, multiplier: 0.8),
         ])
+        mirrorHost.backgroundColor = .black
+        mirrorHost.isHidden = true
+        mirrorHost.frame = view.bounds
+        mirrorHost.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(mirrorHost)
+    }
+
+    func showMirror(_ on: Bool) {
+        loadViewIfNeeded()
+        mirrorHost.isHidden = !on
+        if !on { mirrorHost.subviews.forEach { $0.removeFromSuperview() } }
+        restack()
+    }
+
+    /// Von unten: Platzhalter, Screen, Live-Bild, Kamera.
+    private func restack() {
+        view.bringSubviewToFront(mirrorHost)
+        if let c = camera { view.bringSubviewToFront(c) }
     }
 
     func setCamera(_ v: UIView?) {
@@ -123,10 +209,11 @@ final class BeamerViewController: UIViewController {
         placeholder.isHidden = webView != nil
         guard let wv = webView else { return }
         wv.removeFromSuperview()
+        wv.transform = .identity
         wv.frame = view.bounds
         wv.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.addSubview(wv)
-        if let c = camera { view.bringSubviewToFront(c) }
+        restack()
     }
 }
 
@@ -200,10 +287,18 @@ extension MainViewController {
     }
 }
 
-/// Screen auf dem iPad selbst (kein Beamer angeschlossen). Geschlossen wird über das ✕ des Screens.
+/// Screen auf dem iPad: ohne Beamer im Vollbild; mit Beamer zum Steuern (erweitern, in Beamer-Grösse verkleinert)
+/// oder beim Spiegeln. Geschlossen wird über das ✕ des Screens; «Zum Planer» lässt ihn am Beamer weiterlaufen.
 final class ScreenViewController: UIViewController {
     private let webView: WKWebView
-    init(webView: WKWebView) { self.webView = webView; super.init(nibName: nil, bundle: nil) }
+    private var fixed: CGSize?
+    private let bar = ScreenBar()
+
+    init(webView: WKWebView, fixed: CGSize?) {
+        self.webView = webView
+        self.fixed = fixed
+        super.init(nibName: nil, bundle: nil)
+    }
     required init?(coder: NSCoder) { fatalError() }
 
     override var prefersStatusBarHidden: Bool { true }
@@ -212,11 +307,46 @@ final class ScreenViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = UIColor(red: 0.063, green: 0.133, blue: 0.114, alpha: 1)
-        webView.removeFromSuperview()
-        webView.frame = view.bounds
-        webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(webView)
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(bar)
+        NSLayoutConstraint.activate([
+            bar.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            bar.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+        ])
+        adopt(fixed: fixed)
+    }
 
-        // Kein eigener Schliessen-Knopf: Der Screen hat sein eigenes ✕ (ruft window.close → webViewDidClose).
+    /// WebView (wieder) übernehmen, mit fester Grösse (Beamer) oder bildschirmfüllend.
+    func adopt(fixed: CGSize?) {
+        self.fixed = fixed
+        guard isViewLoaded else { return }
+        if webView.superview !== view {
+            webView.removeFromSuperview()
+            view.insertSubview(webView, belowSubview: bar)
+        }
+        view.setNeedsLayout()
+        refresh()
+    }
+
+    func refresh() {
+        loadViewIfNeeded()
+        bar.refresh()
+        view.bringSubviewToFront(bar)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        guard webView.superview === view else { return }
+        webView.transform = .identity
+        if let s = fixed, s.width > 0, s.height > 0 {
+            webView.autoresizingMask = []
+            webView.frame = CGRect(origin: .zero, size: s)
+            let k = LiveMirror.fit(s, into: view.bounds.size)
+            webView.transform = CGAffineTransform(scaleX: k, y: k)
+            webView.center = CGPoint(x: view.bounds.midX, y: view.bounds.midY)
+        } else {
+            webView.frame = view.bounds
+            webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        }
     }
 }
