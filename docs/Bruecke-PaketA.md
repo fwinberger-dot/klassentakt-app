@@ -9,7 +9,7 @@ Die App setzt `window.klassentaktShell` nur auf `klassentakt.ch` und `*.klassent
 ```js
 klassentaktShell = {
   isShell: true, platform: 'ios', shellVersion: '1.0.0',
-  features: ['beamer-extern','shortcuts','scan','camera','share','print','files'],  // 'scan'/'camera' nur, wenn das Gerät es kann
+  features: ['beamer-extern','shortcuts','scan','camera','share','print','files','editing'],  // 'scan'/'camera' nur, wenn das Gerät es kann
   send(name, payload),        // Web → App, payload = einfaches JSON-Objekt
   on(name, fn) → off(),       // App → Web, fn(payload)
   share({ name, type, blob }) → Promise,  // Helfer: liest blob als Base64 und schickt 'share'
@@ -49,7 +49,7 @@ Florian hat entschieden, dass die Werkzeuge im Classroom Screen der Web-App blei
 
 | Richtung | Name | Nutzlast |
 |---|---|---|
-| Web → App | `open-camera` | `{ref?: string}` |
+| Web → App | `open-camera` | `{ref?: string, mode?: 'live'}`: `mode:'live'` ist der Visualizer, nur Live-Bild ohne «Foto übernehmen» |
 | Web → App | `close-camera` | `{}` |
 | App → Web | `camera` | `{open: boolean}`, bei jedem Öffnen und Schliessen, zuerst gleich nach `on('camera')` |
 | App → Web | `file` | `{source: 'camera', ref?, name: 'Dokumentenkamera 2026-11-04 09.41.jpg', type: 'image/jpeg', size, file: File}` |
@@ -97,6 +97,10 @@ Was die App tut:
 - Es gibt immer **nur einen Screen**, also ein WebView mit einem Zustand. Die App kopiert nur das Bild. Die Web-App muss dafür nichts tun, gekoppelte Screens braucht es auf dem iPad nicht.
 
 **Web-Anschluss:** keiner nötig. Optional `on('beamer')`, um im Screen «auf dem Beamer» bzw. den Modus anzuzeigen.
+
+**Bearbeiten-Popup (`editing`):** Meldet die App das Merkmal `editing`, schickt die Web-App `send('editing', {open: true})`, bevor sie das Popup «Schritt bearbeiten» öffnet, und `{open: false}` nach dem Schliessen.
+- Solange das Popup offen ist, zeigt der Beamer das letzte Bild weiter, und das Popup bleibt auf dem iPad. Das gilt beim Erweitern, beim Steuern und beim Spiegeln.
+- Spätestens nach 15 Minuten oder beim Schliessen des Screens zeigt der Beamer wieder live, falls das `{open:false}` verloren geht.
 
 ## 3. Scanner (Anhang in Lektion und Ablage)
 
