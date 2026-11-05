@@ -75,6 +75,8 @@ final class ScanCoordinator: NSObject, VNDocumentCameraViewControllerDelegate {
     var format: ScanFormat?
     /// `ref` der Web-App, kommt mit dem Scan zurück.
     var ref: String?
+    /// Abgebrochen (z.B. zurück zur Foto-Ansicht).
+    var onCancel: (() -> Void)?
     private var keep: ScanCoordinator?
 
     init(host: MainViewController, format: ScanFormat?) { self.host = host; self.format = format }
@@ -97,7 +99,11 @@ final class ScanCoordinator: NSObject, VNDocumentCameraViewControllerDelegate {
         }
     }
 
-    func documentCameraViewControllerDidCancel(_ c: VNDocumentCameraViewController) { c.dismiss(animated: true); keep = nil }
+    func documentCameraViewControllerDidCancel(_ c: VNDocumentCameraViewController) {
+        let back = onCancel
+        c.dismiss(animated: true) { back?() }
+        keep = nil
+    }
 
     func documentCameraViewController(_ c: VNDocumentCameraViewController, didFailWithError error: Error) {
         c.dismiss(animated: true)
@@ -129,9 +135,10 @@ final class ScanCoordinator: NSObject, VNDocumentCameraViewControllerDelegate {
 
 extension MainViewController {
     /// Scanner öffnen. format nil = nach dem Scannen fragen.
-    func startScan(_ format: ScanFormat?, ref: String? = nil) {
+    func startScan(_ format: ScanFormat?, ref: String? = nil, onCancel: (() -> Void)? = nil) {
         let c = ScanCoordinator(host: self, format: format)
         c.ref = ref
+        c.onCancel = onCancel
         c.start()
     }
 }

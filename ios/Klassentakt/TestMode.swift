@@ -168,7 +168,8 @@ extension MainViewController {
             case "demo-ics": if let u = TestMode.demoICS() { self.offer(u) }
             // Wie das Werkzeug «Dokumentenkamera» im Werkzeugkoffer: Nachricht über die echte Brücke.
             case "web-open-camera": self.testSendOpenCamera(tries: 10)
-            case "web-open-camera-live": self.testSendOpenCamera(tries: 10, live: true)
+            case "web-open-camera-live": self.testSendOpenCamera(tries: 10, payload: "{mode: 'live'}")
+            case "web-open-camera-foto": self.testSendOpenCamera(tries: 10, payload: "{mode: 'foto', allowScan: true, scanFormat: 'pdf', ref: 'test-lektion'}")
             case "demo-editing": self.testEditing()
             default: if let c = ShellCommand(rawValue: r) { self.run(c) }
             }
@@ -186,12 +187,11 @@ extension MainViewController {
     }
 
     /// Wartet, bis die Seite geladen ist und die Brücke hat, dann `open-camera` wie aus dem Werkzeugkoffer.
-    func testSendOpenCamera(tries: Int, live: Bool = false) {
-        let p = live ? "{mode: 'live'}" : "{ref: 'test-lektion'}"
+    func testSendOpenCamera(tries: Int, payload p: String = "{ref: 'test-lektion'}") {
         let js = "(function(){ if (!window.klassentaktShell || document.readyState !== 'complete') return false; klassentaktShell.send('open-camera', \(p)); return true; })()"
         webView.evaluateJavaScript(js) { [weak self] r, _ in
             if (r as? Bool) != true, tries > 0 {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.testSendOpenCamera(tries: tries - 1, live: live) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.testSendOpenCamera(tries: tries - 1, payload: p) }
             }
         }
     }

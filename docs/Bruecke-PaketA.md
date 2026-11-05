@@ -9,7 +9,7 @@ Die App setzt `window.klassentaktShell` nur auf `klassentakt.ch` und `*.klassent
 ```js
 klassentaktShell = {
   isShell: true, platform: 'ios', shellVersion: '1.0.0',
-  features: ['beamer-extern','shortcuts','scan','camera','share','print','files','editing'],  // 'scan'/'camera' nur, wenn das Gerät es kann
+  features: ['beamer-extern','shortcuts','scan','camera','camera-capture','share','print','files','editing'],  // 'scan'/'camera' nur, wenn das Gerät es kann
   send(name, payload),        // Web → App, payload = einfaches JSON-Objekt
   on(name, fn) → off(),       // App → Web, fn(payload)
   share({ name, type, blob }) → Promise,  // Helfer: liest blob als Base64 und schickt 'share'
@@ -50,6 +50,7 @@ Florian hat entschieden, dass die Werkzeuge im Classroom Screen der Web-App blei
 | Richtung | Name | Nutzlast |
 |---|---|---|
 | Web → App | `open-camera` | `{ref?: string, mode?: 'live'}`: `mode:'live'` ist der Visualizer, nur Live-Bild ohne «Foto übernehmen» |
+| Web → App | `open-camera` mit `mode:'foto'` | `{mode:'foto', allowScan?: boolean, scanFormat?: 'pdf'\|'image', ref}`: Anhang. Die Kamera startet als Foto, «Auslösen» schickt `file {source:'camera', ref}` und schliesst. Mit `allowScan` gibt es den Umschalter «Foto \| Scannen»: «Scannen» öffnet den Scanner von iOS, danach kommt `file {source:'scan', ref}`. «Abbrechen» im Scanner führt zurück zum Foto. Nichts am Beamer. Merkmal `camera-capture`. |
 | Web → App | `close-camera` | `{}` |
 | App → Web | `camera` | `{open: boolean}`, bei jedem Öffnen und Schliessen, zuerst gleich nach `on('camera')` |
 | App → Web | `file` | `{source: 'camera', ref?, name: 'Dokumentenkamera 2026-11-04 09.41.jpg', type: 'image/jpeg', size, file: File}` |

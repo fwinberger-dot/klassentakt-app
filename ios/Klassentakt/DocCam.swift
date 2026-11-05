@@ -1,4 +1,5 @@
 import UIKit
+import VisionKit
 import AVFoundation
 import CoreImage
 
@@ -220,6 +221,12 @@ final class DocCamViewController: UIViewController {
     var ref: String?
     /// Visualizer (`open-camera {mode:'live'}`): nur Live-Bild, ohne «Foto übernehmen».
     var liveOnly = false
+    /// Anhang (`open-camera {mode:'foto'}`): auslösen, das Foto geht mit `ref` an die Web-App, die Kamera schliesst.
+    /// Nichts am Beamer – ein Anhang ist privat.
+    var capture = false
+    /// Umschalter «Foto | Scannen» (VisionKit) im Anhang-Modus.
+    var allowScan = false
+    var scanFormat: ScanFormat?
     private let cam = DocCam.shared
     private let preview = DocCamView()
     private let beamerView = DocCamView()
@@ -269,9 +276,11 @@ final class DocCamViewController: UIViewController {
         let rotateBtn = UIButton(type: .system); setup(rotateBtn, "Drehen", "rotate.right", #selector(rotate))
         setup(zoomBtn, "1.0×", "plus.magnifyingglass", #selector(resetZoom))
         setup(torchBtn, "Licht", "flashlight.off.fill", #selector(torch))
-        let photoBtn = UIButton(type: .system); setup(photoBtn, "Foto übernehmen", "camera.fill", #selector(photo))
+        let photoBtn = UIButton(type: .system); setup(photoBtn, capture ? "Auslösen" : "Foto übernehmen", capture ? "camera.circle.fill" : "camera.fill", #selector(photo))
         let closeBtn = UIButton(type: .system); setup(closeBtn, "Schliessen", "xmark.circle.fill", #selector(close))
         photoBtn.isHidden = liveOnly
+        freezeBtn.isHidden = capture
+        rotateBtn.isHidden = capture
         [freezeBtn, rotateBtn, zoomBtn, torchBtn, photoBtn, closeBtn].forEach(bar.addArrangedSubview)
         zip([freezeBtn, rotateBtn, zoomBtn, torchBtn, photoBtn, closeBtn], ["camFreeze", "camRotate", "camZoom", "camTorch", "camPhoto", "camClose"])
             .forEach { $0.accessibilityIdentifier = $1 }
@@ -289,10 +298,30 @@ final class DocCamViewController: UIViewController {
             bar.trailingAnchor.constraint(equalTo: bg.contentView.trailingAnchor, constant: -14),
         ])
 
+        if capture && allowScan && (VNDocumentCameraViewController.isSupported || TestMode.on) {
+            let mode = UISegmentedControl(items: ["Foto", "Scannen"])
+            mode.selectedSegmentIndex = 0
+            mode.accessibilityIdentifier = "camMode"
+            mode.selectedSegmentTintColor = .white
+            mode.setTitleTextAttributes([.foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 16, weight: .semibold)], for: .normal)
+            mode.setTitleTextAttributes([.foregroundColor: UIColor.black, .font: UIFont.systemFont(ofSize: 16, weight: .semibold)], for: .selected)
+            mode.backgroundColor = UIColor(white: 0, alpha: 0.45)
+            mode.addAction(UIAction { [weak self] _ in self?.switchToScan() }, for: .valueChanged)
+            mode.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(mode)
+            NSLayoutConstraint.activate([
+                mode.bottomAnchor.constraint(equalTo: bg.topAnchor, constant: -12),
+                mode.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+                mode.widthAnchor.constraint(equalToConstant: 240),
+            ])
+        }
+
         cam.onChange = { [weak self] in self?.refresh() }
         cam.attach(preview)
-        cam.attach(beamerView)
-        Beamer.shared.showCamera(beamerView)
+        if !capture {
+            cam.attach(beamerView)
+            Beamer.shared.showCamera(beamerView)
+        }
         if !cam.start(orientation: view.window?.windowScene?.interfaceOrientation ?? .landscapeLeft) {
             status.text = "Kamera nicht verfügbar"
         }
@@ -336,7 +365,7 @@ final class DocCamViewController: UIViewController {
         torchBtn.isHidden = !cam.hasTorch
         setTitle(torchBtn, cam.torchOn ? "Licht aus" : "Licht", cam.torchOn ? "flashlight.on.fill" : "flashlight.off.fill")
         if cam.isRunning || cam.isFrozen {
-            var t = Beamer.shared.isExternalConnected ? "● Live auf dem Beamer" : "● Live"
+            var t = capture ? "Foto für den Anhang" : Beamer.shared.isExternalConnected ? "● Live auf dem Beamer" : "● Live"
             if cam.isFrozen { t = "❚❚ Standbild – iPad darf bewegt werden" }
             status.text = t
         }
@@ -361,16 +390,29 @@ final class DocCamViewController: UIViewController {
             UIView.animate(withDuration: 0.2) { self.preview.alpha = 1 }
         }
         host?.deliver([f], source: "camera", ref: ref)
+        if capture { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in self?.close() } }
     }
 
-    @objc func close() {
+    @objc func close() { closeCamera(then: nil) }
+
+    func closeCamera(then done: (() -> Void)?) {
         cam.stop()
         cam.detach(preview)
         cam.detach(beamerView)
         cam.onChange = nil
-        Beamer.shared.showCamera(nil)
+        if !capture { Beamer.shared.showCamera(nil) }
         if Self.current === self { Self.current = nil }
-        dismiss(animated: true)
+        dismiss(animated: true, completion: done)
+    }
+
+    /// «Scannen»: VisionKit lässt sich nicht einbetten → eigene Kamera zu, Scanner auf.
+    /// «Abbrechen» im Scanner führt zurück zur Foto-Ansicht.
+    private func switchToScan() {
+        guard let h = host else { return }
+        let ref = ref, fmt = scanFormat
+        closeCamera {
+            h.startScan(fmt, ref: ref) { h.openDocCam(ref: ref, capture: true, allowScan: true, scanFormat: fmt) }
+        }
     }
 
     override var keyCommands: [UIKeyCommand]? {
@@ -388,7 +430,7 @@ final class DocCamViewController: UIViewController {
 
 extension MainViewController {
     /// Kamera öffnen (Werkzeug der Web-App oder ⌘⇧K). Ist sie schon offen, schliesst ⌘⇧K sie.
-    func openDocCam(ref: String? = nil, liveOnly: Bool = false) {
+    func openDocCam(ref: String? = nil, liveOnly: Bool = false, capture: Bool = false, allowScan: Bool = false, scanFormat: ScanFormat? = nil) {
         if let open = DocCamViewController.current { open.close(); return }
         DocCam.requestAccess { [weak self] ok in
             guard let self = self else { return }
@@ -407,6 +449,9 @@ extension MainViewController {
             vc.host = self
             vc.ref = ref
             vc.liveOnly = liveOnly
+            vc.capture = capture
+            vc.allowScan = allowScan
+            vc.scanFormat = scanFormat
             vc.modalPresentationStyle = .fullScreen
             self.topController().present(vc, animated: true)
         }

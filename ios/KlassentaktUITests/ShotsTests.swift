@@ -78,6 +78,21 @@ final class ShotsTests: XCTestCase {
         tap(app.buttons["camPhoto"])
         pause(3)
         shot("1-kamera-4-foto-uebernehmen")
+        // Anhang: Kamera startet als Foto, Umschalter Foto | Scannen
+        app.terminate()
+        launch(["-ktRun", "web-open-camera-foto"])
+        XCTAssertTrue(app.segmentedControls["camMode"].waitForExistence(timeout: 40))
+        pause(2)
+        shot("1-kamera-5-anhang-foto-modus")
+        tap(app.buttons["camPhoto"])
+        pause(3)
+        shot("1-kamera-6-anhang-foto-ausgeloest")
+        app.terminate()
+        launch(["-ktRun", "web-open-camera-foto"])
+        XCTAssertTrue(app.segmentedControls["camMode"].waitForExistence(timeout: 40))
+        tap(app.segmentedControls["camMode"].buttons["Scannen"])
+        pause(4)
+        shot("1-kamera-7-anhang-scannen")
     }
 
     // 2 – Beamer: Erweitern mit Bild im Bild, Steuern auf dem iPad, Spiegeln; Kamera als Werkzeug

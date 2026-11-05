@@ -12,7 +12,7 @@ final class Shell: NSObject, WKScriptMessageHandler {
     /// Was die App kann. Die Web-App darf ihre Knöpfe danach ein- und ausblenden.
     /// `camera` und `scan` nur, wenn das Gerät es kann (Rückkamera bzw. VisionKit-Scanner).
     static func features(camera: Bool, scan: Bool) -> [String] {
-        ["beamer-extern", "shortcuts"] + (scan ? ["scan"] : []) + (camera ? ["camera"] : []) + ["share", "print", "files", "editing"]
+        ["beamer-extern", "shortcuts"] + (scan ? ["scan"] : []) + (camera ? ["camera", "camera-capture"] : []) + ["share", "print", "files", "editing"]
     }
 
     static var features: [String] {
