@@ -193,8 +193,11 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
             // «camera» {open} ist der alte Name aus Fassung 1.
             let want = name == "open-camera" || (name == "camera" && payload["open"] as? Bool ?? true)
             let cam = DocCamViewController.current
-            if want, cam == nil { openDocCam(ref: Self.ref(payload)) }
+            if want, cam == nil { openDocCam(ref: Self.ref(payload), liveOnly: payload["mode"] as? String == "live") }
             if !want { cam?.close() }
+        case "editing":
+            // Bearbeiten-Popup im Screen: Beamer behält das letzte Bild, das Popup bleibt privat.
+            Beamer.shared.setEditing(payload["open"] as? Bool ?? false)
         case "share":
             shareFromWeb(payload)
         case "print":

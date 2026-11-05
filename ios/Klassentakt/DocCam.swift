@@ -218,6 +218,8 @@ final class DocCamViewController: UIViewController {
     static weak var current: DocCamViewController?
     /// `ref` der Web-App, kommt mit dem Foto zurück.
     var ref: String?
+    /// Visualizer (`open-camera {mode:'live'}`): nur Live-Bild, ohne «Foto übernehmen».
+    var liveOnly = false
     private let cam = DocCam.shared
     private let preview = DocCamView()
     private let beamerView = DocCamView()
@@ -269,6 +271,7 @@ final class DocCamViewController: UIViewController {
         setup(torchBtn, "Licht", "flashlight.off.fill", #selector(torch))
         let photoBtn = UIButton(type: .system); setup(photoBtn, "Foto übernehmen", "camera.fill", #selector(photo))
         let closeBtn = UIButton(type: .system); setup(closeBtn, "Schliessen", "xmark.circle.fill", #selector(close))
+        photoBtn.isHidden = liveOnly
         [freezeBtn, rotateBtn, zoomBtn, torchBtn, photoBtn, closeBtn].forEach(bar.addArrangedSubview)
         zip([freezeBtn, rotateBtn, zoomBtn, torchBtn, photoBtn, closeBtn], ["camFreeze", "camRotate", "camZoom", "camTorch", "camPhoto", "camClose"])
             .forEach { $0.accessibilityIdentifier = $1 }
@@ -371,7 +374,7 @@ final class DocCamViewController: UIViewController {
     }
 
     override var keyCommands: [UIKeyCommand]? {
-        [
+        let all = [
             UIKeyCommand(title: "Einfrieren/Live", action: #selector(freeze), input: " "),
             UIKeyCommand(title: "Drehen", action: #selector(rotate), input: "r"),
             UIKeyCommand(title: "Licht", action: #selector(torch), input: "l"),
@@ -379,12 +382,13 @@ final class DocCamViewController: UIViewController {
             UIKeyCommand(title: "Zoom zurücksetzen", action: #selector(resetZoom), input: "0"),
             UIKeyCommand(title: "Kamera schliessen", action: #selector(close), input: UIKeyCommand.inputEscape),
         ]
+        return liveOnly ? all.filter { $0.action != #selector(photo) } : all
     }
 }
 
 extension MainViewController {
     /// Kamera öffnen (Werkzeug der Web-App oder ⌘⇧K). Ist sie schon offen, schliesst ⌘⇧K sie.
-    func openDocCam(ref: String? = nil) {
+    func openDocCam(ref: String? = nil, liveOnly: Bool = false) {
         if let open = DocCamViewController.current { open.close(); return }
         DocCam.requestAccess { [weak self] ok in
             guard let self = self else { return }
@@ -402,6 +406,7 @@ extension MainViewController {
             let vc = DocCamViewController()
             vc.host = self
             vc.ref = ref
+            vc.liveOnly = liveOnly
             vc.modalPresentationStyle = .fullScreen
             self.topController().present(vc, animated: true)
         }

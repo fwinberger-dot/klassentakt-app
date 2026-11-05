@@ -105,6 +105,17 @@ final class ShotsTests: XCTestCase {
         pause(2)
         shot("2-beamer-6-kamera-aus-werkzeugkoffer")
         tap(app.buttons["camClose"])
+        app.terminate()
+        launch(["-ktBeamerPreview", "-ktRun", "demo-editing"])
+        XCTAssertTrue(app.descendants(matching: .any)["screenBar"].waitForExistence(timeout: 40))
+        pause(4)
+        shot("2-beamer-7-bearbeiten-beamer-steht")
+        app.terminate()
+        launch(["-ktBeamerPreview", "-ktRun", "web-open-camera-live"])
+        XCTAssertTrue(app.otherElements["camPreview"].waitForExistence(timeout: 30))
+        pause(2)
+        XCTAssertFalse(app.buttons["camPhoto"].exists)
+        shot("2-beamer-8-visualizer-ohne-foto")
     }
 
     // 5 – Teilen-Menü und Dateien

@@ -168,6 +168,8 @@ extension MainViewController {
             case "demo-ics": if let u = TestMode.demoICS() { self.offer(u) }
             // Wie das Werkzeug «Dokumentenkamera» im Werkzeugkoffer: Nachricht über die echte Brücke.
             case "web-open-camera": self.testSendOpenCamera(tries: 10)
+            case "web-open-camera-live": self.testSendOpenCamera(tries: 10, live: true)
+            case "demo-editing": self.testEditing()
             default: if let c = ShellCommand(rawValue: r) { self.run(c) }
             }
         }
@@ -184,11 +186,27 @@ extension MainViewController {
     }
 
     /// Wartet, bis die Seite geladen ist und die Brücke hat, dann `open-camera` wie aus dem Werkzeugkoffer.
-    func testSendOpenCamera(tries: Int) {
-        let js = "(function(){ if (!window.klassentaktShell || document.readyState !== 'complete') return false; klassentaktShell.send('open-camera', {ref: 'test-lektion'}); return true; })()"
+    func testSendOpenCamera(tries: Int, live: Bool = false) {
+        let p = live ? "{mode: 'live'}" : "{ref: 'test-lektion'}"
+        let js = "(function(){ if (!window.klassentaktShell || document.readyState !== 'complete') return false; klassentaktShell.send('open-camera', \(p)); return true; })()"
         webView.evaluateJavaScript(js) { [weak self] r, _ in
             if (r as? Bool) != true, tries > 0 {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.testSendOpenCamera(tries: tries - 1) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.testSendOpenCamera(tries: tries - 1, live: live) }
+            }
+        }
+    }
+
+    /// Wie das Bearbeiten-Popup der Web-App: Screen öffnen, steuern, dann `editing` senden und ein
+    /// erfundenes Popup in den Screen legen. Der Beamer muss das Bild davor behalten.
+    func testEditing() {
+        openScreen()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self = self, let screen = Beamer.shared.screenWebView else { return }
+            Beamer.shared.control(true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                self.webView.evaluateJavaScript("klassentaktShell.send('editing', {open: true})", completionHandler: nil)
+                let pop = "(function(){ var d = document.createElement('div'); d.textContent = 'Schritt bearbeiten (Test): Einstieg – Brüche am Kreis'; d.style.cssText = 'position:fixed;left:25%;top:30%;width:50%;padding:48px;background:#fff;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font:600 40px system-ui;z-index:99999;color:#123'; document.body.appendChild(d); })()"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { screen.evaluateJavaScript(pop, completionHandler: nil) }
             }
         }
     }

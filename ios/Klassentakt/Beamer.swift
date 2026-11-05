@@ -22,6 +22,9 @@ final class Beamer {
     /// Screen gross auf dem iPad (erweitern: «Steuern»; spiegeln: Screen statt Planer).
     private(set) var screenOnIPad = false
     private var mirror: LiveMirror?
+    /// Bearbeiten-Popup offen (`editing`): Beamer zeigt das letzte Bild weiter.
+    private(set) var isEditing = false
+    private var editingRelease: DispatchWorkItem?
 
     /// Bild der Dokumentenkamera auf dem Beamer (über dem Screen). nil = Kamera zu.
     private(set) var cameraView: UIView?
@@ -58,11 +61,26 @@ final class Beamer {
         wv.removeFromSuperview()
         screenWebView = nil
         screenOnIPad = false
+        setEditing(false)
         externalController.setScreen(nil)
         dismissModal()
         place()
         UIApplication.shared.isIdleTimerDisabled = false
         host?.beamerChanged()
+    }
+
+    /// Bearbeiten-Popup der Web-App auf/zu. Spätestens nach 15 Minuten taut der Beamer von selbst auf.
+    func setEditing(_ open: Bool) {
+        guard open != isEditing else { return }
+        isEditing = open
+        editingRelease?.cancel()
+        if open {
+            let w = DispatchWorkItem { [weak self] in self?.setEditing(false) }
+            editingRelease = w
+            DispatchQueue.main.asyncAfter(deadline: .now() + 15 * 60, execute: w)
+        }
+        externalController.freeze(open)
+        mirror?.paused = open
     }
 
     /// Erweitern ↔ Spiegeln. Beim Spiegeln kommt ein offener Screen aufs iPad (dann sieht man ihn auch vorne).
@@ -103,6 +121,7 @@ final class Beamer {
         mirror?.stop()
         mirror = nil
         defer {
+            mirror?.paused = isEditing
             externalController.showMirror(mirror != nil)
             modal?.refresh()
             host?.refreshPiP()
@@ -157,6 +176,8 @@ final class BeamerViewController: UIViewController {
     private weak var camera: UIView?
     /// Live-Bild (Steuern auf dem iPad oder Spiegeln). Über dem Screen, unter der Kamera.
     let mirrorHost = UIView()
+    /// Eingefrorenes Bild über allem, solange `editing` offen ist.
+    private var frozen: UIView?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -187,10 +208,24 @@ final class BeamerViewController: UIViewController {
         restack()
     }
 
-    /// Von unten: Platzhalter, Screen, Live-Bild, Kamera.
+    /// Von unten: Platzhalter, Screen, Live-Bild, Kamera, eingefrorenes Bild.
     private func restack() {
         view.bringSubviewToFront(mirrorHost)
         if let c = camera { view.bringSubviewToFront(c) }
+        if let f = frozen { view.bringSubviewToFront(f) }
+    }
+
+    /// Aktuelles Beamer-Bild festhalten (true) oder wieder live zeigen (false).
+    func freeze(_ on: Bool) {
+        loadViewIfNeeded()
+        frozen?.removeFromSuperview()
+        frozen = nil
+        guard on, let snap = view.snapshotView(afterScreenUpdates: false) else { return }
+        snap.frame = view.bounds
+        snap.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        snap.accessibilityIdentifier = "beamerFrozen"
+        view.addSubview(snap)
+        frozen = snap
     }
 
     func setCamera(_ v: UIView?) {

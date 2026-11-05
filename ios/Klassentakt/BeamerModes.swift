@@ -74,8 +74,11 @@ final class LiveMirror {
         return min(box.width / size.width, box.height / size.height)
     }
 
+    /// Angehalten: letztes Bild bleibt stehen (z.B. solange ein Bearbeiten-Popup offen ist).
+    var paused = false
+
     fileprivate func tick() {
-        guard let s = source, let t = target, s.window != nil, !t.isHidden,
+        guard !paused, let s = source, let t = target, s.window != nil, !t.isHidden,
               let v = s.snapshotView(afterScreenUpdates: false) else { return }
         let k = Self.fit(v.bounds.size, into: t.bounds.size)
         v.isUserInteractionEnabled = false
