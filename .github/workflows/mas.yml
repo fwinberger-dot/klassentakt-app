@@ -1,0 +1,92 @@
+name: Mac App Store (TestFlight)
+
+# Nur von Hand: Actions → «Mac App Store (TestFlight)» → Run workflow.
+# Ohne Häkchen «hochladen» wird nur gebaut und geprüft (Artefakt .pkg). Hochladen nur mit Florians Freigabe.
+on:
+  workflow_dispatch:
+    inputs:
+      hochladen:
+        description: 'Zu App Store Connect / TestFlight hochladen (Freigabe Florian)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  mas:
+    runs-on: macos-latest
+    env:
+      DIST_P12: ${{ secrets.IOS_CERT_P12_BASE64 }}          # «Apple Distribution» (gilt für iPad und Mac)
+      DIST_PW: ${{ secrets.MAC_CERT_PASSWORD }}
+      INSTALLER_P12: ${{ secrets.MAS_INSTALLER_P12_BASE64 }} # «Mac Installer Distribution»
+      INSTALLER_PW: ${{ secrets.MAS_INSTALLER_PASSWORD }}
+      PROFILE: ${{ secrets.MAS_PROFILE_BASE64 }}             # Profil «Klassentakt Mac App Store»
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - name: Secrets vorhanden?
+        run: |
+          fehlt=""
+          for v in DIST_P12 DIST_PW INSTALLER_P12 INSTALLER_PW PROFILE; do [ -n "${!v}" ] || fehlt="$fehlt $v"; done
+          if [ -n "$fehlt" ]; then echo "::error::Es fehlen Secrets:$fehlt (siehe docs/MacAppStore-Plan.md, Abschnitt 4)"; exit 1; fi
+      - name: Zertifikate und Profil installieren
+        run: |
+          KC="$RUNNER_TEMP/mas.keychain-db"; KCPW=$(openssl rand -hex 16)
+          security create-keychain -p "$KCPW" "$KC"
+          security set-keychain-settings -lut 3600 "$KC"
+          security unlock-keychain -p "$KCPW" "$KC"
+          echo "$DIST_P12" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          echo "$INSTALLER_P12" | base64 --decode > "$RUNNER_TEMP/installer.p12"
+          security import "$RUNNER_TEMP/dist.p12" -k "$KC" -P "$DIST_PW" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/security
+          security import "$RUNNER_TEMP/installer.p12" -k "$KC" -P "$INSTALLER_PW" -T /usr/bin/productbuild -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/installer.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KCPW" "$KC" >/dev/null
+          security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v "$KC"
+          echo "$PROFILE" | base64 --decode > build/mas.provisionprofile
+      - name: Mac-App-Store-Paket bauen
+        run: |
+          unset CSC_LINK CSC_KEY_PASSWORD
+          npx electron-builder --config build/electron-builder.mas.js --mac mas --universal --publish never \
+            -c.buildVersion=${{ github.run_number }}
+          ls -la dist/*.pkg
+      - name: Paket prüfen (Signatur, Sandbox, kein Selbst-Update)
+        run: |
+          APP=$(ls -d dist/mas-universal/*.app | head -1)
+          PKG=$(ls dist/*.pkg | head -1)
+          pkgutil --check-signature "$PKG"
+          codesign -dvv "$APP" 2>&1 | grep -E "Authority|TeamIdentifier|Identifier"
+          codesign -d --entitlements - --xml "$APP" > "$RUNNER_TEMP/ent.plist"
+          grep -q "com.apple.security.app-sandbox" "$RUNNER_TEMP/ent.plist" || { echo "::error::keine Sandbox"; exit 1; }
+          test -f "$APP/Contents/embedded.provisionprofile" || { echo "::error::Profil fehlt im Paket"; exit 1; }
+          test -f "$APP/Contents/Resources/PrivacyInfo.xcprivacy" || { echo "::error::PrivacyInfo fehlt"; exit 1; }
+          if npx @electron/asar list "$APP/Contents/Resources/app.asar" | grep -q updater; then echo "::error::Selbst-Update im Paket"; exit 1; fi
+          plutil -p "$APP/Contents/Info.plist" | grep -E "CFBundleIdentifier|CFBundleShortVersionString|CFBundleVersion|ITSAppUses"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Klassentakt-mas
+          path: dist/*.pkg
+          retention-days: 14
+      - name: Zu TestFlight hochladen (nur mit Häkchen)
+        if: inputs.hochladen
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s\n' "$APPLE_API_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$APPLE_API_KEY_ID.p8"
+          xcrun altool --upload-app -t macos -f "$(ls dist/*.pkg | head -1)" \
+            --apiKey "$APPLE_API_KEY_ID" --apiIssuer "$APPLE_API_ISSUER"
+      - name: Aufräumen
+        if: always()
+        run: |
+          rm -f build/mas.provisionprofile "$HOME/.appstoreconnect/private_keys/"*.p8
+          security delete-keychain "$RUNNER_TEMP/mas.keychain-db" 2>/dev/null || true
