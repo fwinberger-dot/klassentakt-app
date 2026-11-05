@@ -93,6 +93,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         ])
 
         installDrop(on: view)
+        installTestBand()
         pip.isHidden = true
         view.addSubview(pip)
         view.bringSubviewToFront(toastLabel)
@@ -171,6 +172,31 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         toastLabel.text = text
         UIView.animate(withDuration: 0.25) { self.toastLabel.alpha = 1 }
         UIView.animate(withDuration: 0.4, delay: 2.6, options: []) { self.toastLabel.alpha = 0 }
+    }
+
+    /// «TEST · staging»: sichtbar, sobald die App nicht gegen klassentakt.ch läuft (Verwechslung mit dem Betrieb vermeiden).
+    static func testBandText(_ server: String) -> String? {
+        server == "klassentakt.ch" ? nil : "TEST · " + (server.components(separatedBy: ".").first ?? server)
+    }
+
+    private func installTestBand() {
+        guard let t = Self.testBandText(Self.server) else { return }
+        let l = PaddingLabel()
+        l.insets = UIEdgeInsets(top: 2, left: 10, bottom: 2, right: 10)
+        l.text = t
+        l.font = .systemFont(ofSize: 11, weight: .bold)
+        l.textColor = .white
+        l.backgroundColor = .systemOrange
+        l.layer.cornerRadius = 8
+        l.clipsToBounds = true
+        l.isUserInteractionEnabled = false
+        l.accessibilityIdentifier = "testBand"
+        l.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(l)
+        NSLayoutConstraint.activate([
+            l.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            l.topAnchor.constraint(equalTo: view.topAnchor, constant: 4),
+        ])
     }
 
     /// Bild im Bild nach jeder Änderung am Beamer (Modus, Screen auf/zu, verbunden).

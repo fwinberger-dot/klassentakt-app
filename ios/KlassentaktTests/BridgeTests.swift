@@ -19,6 +19,8 @@ final class BridgeTests: XCTestCase {
         XCTAssertEqual(MainViewController.serverName("klassentakt.ch.evil.com"), "klassentakt.ch")
         XCTAssertEqual(MainViewController.serverName("a/b.klassentakt.ch"), "klassentakt.ch")
         XCTAssertEqual(MainViewController.server, "klassentakt.ch") // Standard-Build
+        XCTAssertNil(MainViewController.testBandText("klassentakt.ch"))
+        XCTAssertEqual(MainViewController.testBandText("staging.klassentakt.ch"), "TEST · staging")
     }
 
     func testRefIsShortenedAndOptional() {
