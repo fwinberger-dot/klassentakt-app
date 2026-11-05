@@ -79,7 +79,7 @@ Was die App tut:
 
 | Richtung | Name | Nutzlast |
 |---|---|---|
-| App → Web | `beamer` | `{open, extern, camera}` (`open` = Screen-Fenster offen, `extern` = Beamer verbunden) |
+| App → Web | `beamer` | `{open, extern, camera, mode: 'erweitern'\|'spiegeln', steuern}` (`open` = Screen-Fenster offen, `extern` = Beamer verbunden, `steuern` = Screen gerade gross auf dem iPad) |
 | App → Web | `klassentakt-beamer` (CustomEvent, wie bisher) | `{open, extern}` |
 
 Was die App tut:
@@ -87,7 +87,16 @@ Was die App tut:
 - Solange kein Screen offen ist, zeigt der Beamer eine ruhige Platzhalterseite mit dem Klassentakt-Logo und «Classroom Screen auf dem iPad öffnen». Er spiegelt **nie** den Planer.
 - Beim Verbinden (Vorschlag, statt der Auswahl von Fassung 1): Ist der Screen schon offen, erscheint auf dem iPad nur kurz «Beamer verbunden, zeigt den Classroom Screen». Sonst erscheint ein Hinweis, der nicht blockiert und nach 8 s verschwindet, mit dem Knopf «Classroom Screen öffnen». Es gibt keine Auswahl und keinen Dialog.
 
-**Web-Anschluss:** keiner nötig. Optional `on('beamer')`, um im Screen «auf dem Beamer» anzuzeigen.
+**Modi (Runde 4, Florians Entscheid vom 5.11.):** Die Modi lassen sich während der Nutzung umschalten, ohne Dialog.
+
+- **Erweitern** (Standard):
+  - Der Screen läuft am Beamer. Auf dem iPad zeigt ein verschiebbares Fenster (Bild im Bild) live, was am Beamer läuft.
+  - **Antippen = Steuern:** Derselbe Screen kommt gross aufs iPad, in Beamer-Grösse und verkleinert, damit am Beamer nichts umbricht. Er lässt sich dort bedienen: zeichnen, Werkzeuge öffnen und schliessen usw. Der Beamer zeigt sein Live-Bild.
+  - Der Knopf «Zum Planer» bringt den Screen zurück an den Beamer, er läuft weiter.
+- **Spiegeln:** Der Beamer zeigt das iPad-Bild. Ein offener Screen kommt dabei aufs iPad.
+- Es gibt immer **nur einen Screen**, also ein WebView mit einem Zustand. Die App kopiert nur das Bild. Die Web-App muss dafür nichts tun, gekoppelte Screens braucht es auf dem iPad nicht.
+
+**Web-Anschluss:** keiner nötig. Optional `on('beamer')`, um im Screen «auf dem Beamer» bzw. den Modus anzuzeigen.
 
 ## 3. Scanner (Anhang in Lektion und Ablage)
 
