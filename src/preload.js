@@ -9,8 +9,9 @@ if (trusted) {
   contextBridge.exposeInMainWorld('klassentaktShell', Object.freeze({
     isShell: true,
     platform: process.platform,
-    shellVersion: '0.4.0',
-    features: Object.freeze(['beamer', 'update']),
+    shellVersion: (process.argv.find((a) => a.startsWith('--kt-shell-version=')) || '=0.4.1').split('=')[1],
+    store: !!process.mas, // Mac App Store: Updates über Apple
+    features: Object.freeze(process.mas ? ['beamer'] : ['beamer', 'update']),
     beamer: Object.freeze({
       // { open, fullscreen, onDisplay, awake, settings, displays:[{id,label,primary,internal}] }
       state: () => ipcRenderer.invoke('beamer:state'),

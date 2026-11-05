@@ -11,7 +11,8 @@
     "start": "electron .",
     "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js && node --check src/update-preload.js",
     "dist:mac": "electron-builder --mac --publish never -c.mac.identity=-",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "dist:mas": "electron-builder --config build/electron-builder.mas.js --mac mas --universal --publish never"
   },
   "devDependencies": {
     "electron": "44.7.2",
@@ -64,6 +65,18 @@
           "klassentakt"
         ]
       }
-    ]
-  }
+    ],
+    "mas": {
+      "entitlements": "build/entitlements.mas.plist",
+      "entitlementsInherit": "build/entitlements.mas.inherit.plist",
+      "hardenedRuntime": false,
+      "provisioningProfile": "build/mas.provisionprofile",
+      "artifactName": "Klassentakt-${version}-mas.${ext}",
+      "extendInfo": {
+        "ElectronTeamID": "Z28KL39TYK",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  },
+  "masVersion": "1.0.0"
 }

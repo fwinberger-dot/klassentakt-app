@@ -5,7 +5,8 @@ const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, ipc
 const path = require('path');
 const fs = require('fs');
 const beamer = require('./beamer');
-const updater = require('./updater');
+// Mac App Store (process.mas): Apple aktualisiert die App, darum dort kein eigenes Update (Dateien fehlen im Paket).
+const updater = process.mas ? null : require('./updater');
 
 const START_URL = 'https://klassentakt.ch/';
 const APP_HOSTS = ['klassentakt.ch'];
@@ -99,7 +100,7 @@ function createWindow(startUrl) {
     backgroundColor: '#fff4e6',
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -130,7 +131,7 @@ function wireNavigation(wc) {
         action: 'allow',
         overrideBrowserWindowOptions: {
           ...beamer.windowOptions(win),
-          webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true },
+          webPreferences: { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true },
         },
       };
     }
@@ -139,7 +140,7 @@ function wireNavigation(wc) {
         action: 'allow',
         overrideBrowserWindowOptions: {
           width: 1100, height: 780, autoHideMenuBar: true,
-          webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true },
+          webPreferences: { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true },
         },
       };
     }
@@ -233,7 +234,7 @@ function buildMenu() {
       label: 'Klassentakt',
       submenu: [
         { role: 'about', label: 'Über Klassentakt' },
-        { label: 'Nach Updates suchen …', click: () => updater.check(true) },
+        ...(updater ? [{ label: 'Nach Updates suchen …', click: () => updater.check(true) }] : []),
         { type: 'separator' },
         { role: 'services', label: 'Dienste' },
         { type: 'separator' },
@@ -295,14 +296,16 @@ app.on('second-instance', (_e, argv) => {
 app.whenReady().then(() => {
   app.setAboutPanelOptions({ applicationName: 'Klassentakt', applicationVersion: app.getVersion(), copyright: '© 2026 Florian Winberger', website: START_URL });
   wirePermissions();
-  updater.init(() => win);
+  if (updater) updater.init(() => win);
   beamer.init(() => { buildMenu(); broadcastBeamer(); });
   wireBridge();
   buildMenu();
   createWindow();
   if (pendingLink) { handleDeepLink(pendingLink); pendingLink = null; }
-  setTimeout(() => updater.check(false), 8000);
-  setInterval(() => updater.check(false), 6 * 60 * 60 * 1000); // App läuft oft tagelang
+  if (updater) {
+    setTimeout(() => updater.check(false), 8000);
+    setInterval(() => updater.check(false), 6 * 60 * 60 * 1000); // App läuft oft tagelang
+  }
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
