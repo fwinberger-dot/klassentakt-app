@@ -11,6 +11,8 @@ import WebKit
 /// - Solange der Screen offen ist, geht das iPad nicht in den Ruhezustand.
 final class Beamer {
     static let shared = Beamer()
+    /// Pause zwischen `display {shown:true}` und dem ersten Bild nach aussen.
+    static let revealDelay: TimeInterval = 0.15
 
     let externalController = BeamerViewController()
     private(set) var screenWebView: WKWebView?
@@ -22,6 +24,7 @@ final class Beamer {
     /// Screen gross auf dem iPad (erweitern: «Steuern»; spiegeln: Screen statt Planer).
     private(set) var screenOnIPad = false
     private var mirror: LiveMirror?
+    private var wasMirroring = false
     /// Bearbeiten-Popup offen (`editing`): Beamer zeigt das letzte Bild weiter.
     private(set) var isEditing = false
     private var editingRelease: DispatchWorkItem?
@@ -34,6 +37,15 @@ final class Beamer {
     var stateForWeb: [String: Any] {
         ["open": screenWebView != nil, "extern": isExternalConnected, "camera": cameraView != nil,
          "mode": mode.rawValue, "steuern": isExternalConnected && screenOnIPad && screenWebView != nil]
+    }
+
+    /// Ist der Inhalt eines WebViews gerade ausserhalb des iPads zu sehen? (`display` an die Web-App, z. B. für
+    /// Schritte «nur für mich»). Lieber einmal zu oft `true`: beim Spiegeln zählen Planer und Screen.
+    static func display(isScreen: Bool, connected: Bool, mode: BeamerMode, captured: Bool) -> (shown: Bool, how: String) {
+        if captured { return (true, "capture") }
+        guard connected else { return (false, "none") }
+        if mode == .mirror { return (true, "mirror") }
+        return isScreen ? (true, "beamer") : (false, "none")
     }
 
     /// Dokumentenkamera auf den Beamer. nil = wieder der Screen.
@@ -105,8 +117,18 @@ final class Beamer {
         let wasConnected = isExternalConnected
         isExternalConnected = connected
         if connected != wasConnected { screenOnIPad = !connected || mode == .mirror }
-        place()
-        host?.beamerChanged()
+        if connected && !wasConnected {
+            // Erst `display` an die Web-App, dann nach kurzer Pause das Bild an den Beamer (bis dahin Platzhalter).
+            host?.updateDisplay()
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.revealDelay) { [weak self] in
+                guard let self = self, self.isExternalConnected else { return }
+                self.place()
+                self.host?.beamerChanged()
+            }
+        } else {
+            place()
+            host?.beamerChanged()
+        }
         if connected && !wasConnected {
             if let h = host, h.view.window != nil {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { h.beamerConnectedHint() }
@@ -121,7 +143,16 @@ final class Beamer {
         mirror?.stop()
         mirror = nil
         defer {
-            mirror?.paused = isEditing
+            // Neu ins Spiegeln: Live-Bild erst nach `display` an die Web-App (beamerChanged nach place) starten.
+            let fresh = mirror != nil && mode == .mirror && !wasMirroring
+            wasMirroring = mirror != nil && mode == .mirror
+            mirror?.paused = fresh || isEditing
+            if fresh {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.revealDelay) { [weak self] in
+                    guard let self = self else { return }
+                    self.mirror?.paused = self.isEditing
+                }
+            }
             externalController.showMirror(mirror != nil)
             modal?.refresh()
             host?.refreshPiP()

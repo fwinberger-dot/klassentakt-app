@@ -9,7 +9,7 @@ Die App setzt `window.klassentaktShell` nur auf `klassentakt.ch` und `*.klassent
 ```js
 klassentaktShell = {
   isShell: true, platform: 'ios', shellVersion: '1.0.0',
-  features: ['beamer-extern','shortcuts','scan','camera','camera-capture','share','print','files','editing'],  // 'scan'/'camera' nur, wenn das Gerät es kann
+  features: ['beamer-extern','shortcuts','scan','camera','camera-capture','share','print','files','editing','display-state'],  // 'scan'/'camera' nur, wenn das Gerät es kann
   send(name, payload),        // Web → App, payload = einfaches JSON-Objekt
   on(name, fn) → off(),       // App → Web, fn(payload)
   share({ name, type, blob }) → Promise,  // Helfer: liest blob als Base64 und schickt 'share'
@@ -102,6 +102,16 @@ Was die App tut:
 **Bearbeiten-Popup (`editing`):** Meldet die App das Merkmal `editing`, schickt die Web-App `send('editing', {open: true})`, bevor sie das Popup «Schritt bearbeiten» öffnet, und `{open: false}` nach dem Schliessen.
 - Solange das Popup offen ist, zeigt der Beamer das letzte Bild weiter, und das Popup bleibt auf dem iPad. Das gilt beim Erweitern, beim Steuern und beim Spiegeln.
 - Spätestens nach 15 Minuten oder beim Schliessen des Screens zeigt der Beamer wieder live, falls das `{open:false}` verloren geht.
+
+**Sichtbarkeit nach aussen (`display-state`):** Für Inhalte, die die Kinder nicht sehen dürfen (Schritte «nur für mich»).
+- Ereignis `on('display', d)` mit `d = {shown: bool, how: 'beamer'|'mirror'|'capture'|'none'}`. Es gilt **pro WebView** (Planer und Screen getrennt), kommt nach `on('display')`, bei jeder Änderung und als Antwort auf `send('display-get')`.
+- `shown: true`, wenn:
+  - `capture`: iPadOS nimmt auf oder spiegelt (Bildschirmaufnahme, AirPlay-Synchronisierung).
+  - `mirror`: Die App spiegelt («Spiegeln»). Planer und Screen zählen beide.
+  - `beamer`: Der Screen beim Erweitern, solange ein Beamer verbunden ist. Das gilt auch beim Steuern, weil der Beamer dann ein Live-Bild zeigt.
+- `shown: false` (`none`): kein Beamer, oder der Planer beim Erweitern. Das Bild im Bild bleibt auf dem iPad.
+- Reihenfolge: Beim Einstecken bzw. beim Wechsel auf «Spiegeln» sendet die App zuerst `display` und zeigt das Bild erst 150 ms später nach aussen.
+- Ohne das Merkmal (z. B. Safari) muss die Web-App solche Inhalte gesperrt lassen.
 
 ## 3. Scanner (Anhang in Lektion und Ablage)
 

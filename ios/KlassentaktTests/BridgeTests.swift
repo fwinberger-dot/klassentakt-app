@@ -7,6 +7,7 @@ final class BridgeTests: XCTestCase {
         XCTAssertTrue(Shell.features(camera: true, scan: true).contains("camera"))
         XCTAssertFalse(Shell.features(camera: false, scan: true).contains("camera"))
         XCTAssertTrue(Shell.features(camera: true, scan: true).contains("camera-capture"))
+        XCTAssertTrue(Shell.features(camera: false, scan: false).contains("display-state"))
         XCTAssertFalse(Shell.features(camera: false, scan: true).contains("camera-capture"))
         XCTAssertFalse(Shell.features(camera: true, scan: false).contains("scan"))
         XCTAssertTrue(Shell.features(camera: false, scan: false).contains("files"))

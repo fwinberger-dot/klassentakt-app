@@ -12,7 +12,7 @@ final class Shell: NSObject, WKScriptMessageHandler {
     /// Was die App kann. Die Web-App darf ihre Knöpfe danach ein- und ausblenden.
     /// `camera` und `scan` nur, wenn das Gerät es kann (Rückkamera bzw. VisionKit-Scanner).
     static func features(camera: Bool, scan: Bool) -> [String] {
-        ["beamer-extern", "shortcuts"] + (scan ? ["scan"] : []) + (camera ? ["camera", "camera-capture"] : []) + ["share", "print", "files", "editing"]
+        ["beamer-extern", "shortcuts"] + (scan ? ["scan"] : []) + (camera ? ["camera", "camera-capture"] : []) + ["share", "print", "files", "editing", "display-state"]
     }
 
     static var features: [String] {
@@ -132,6 +132,15 @@ final class Shell: NSObject, WKScriptMessageHandler {
         let targets = listeners[name]?.compactMap { $0.value } ?? []
         guard !targets.isEmpty, let js = Self.emitJS(name, payload) else { return false }
         targets.forEach { $0.evaluateJavaScript(js, completionHandler: nil) }
+        return true
+    }
+
+    /// Ereignis nur an ein WebView (z. B. `display`, das pro WebView gilt). `always`: auch ohne `on` (Antwort auf `…-get`).
+    @discardableResult
+    func emit(_ name: String, _ payload: [String: Any], to wv: WKWebView, always: Bool = false) -> Bool {
+        let listening = listeners[name]?.contains { $0.value === wv } ?? false
+        guard listening || always, let js = Self.emitJS(name, payload) else { return false }
+        wv.evaluateJavaScript(js, completionHandler: nil)
         return true
     }
 

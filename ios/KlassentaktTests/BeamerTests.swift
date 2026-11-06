@@ -42,4 +42,18 @@ final class BeamerTests: XCTestCase {
         c.sendActions(for: .valueChanged)
         XCTAssertEqual(got, .mirror)
     }
+
+    func testDisplayState() {
+        // Ohne Beamer: nichts geht nach aussen.
+        XCTAssertFalse(Beamer.display(isScreen: true, connected: false, mode: .extend, captured: false).shown)
+        // Erweitern: Screen am Beamer sichtbar, Planer nicht.
+        XCTAssertEqual(Beamer.display(isScreen: true, connected: true, mode: .extend, captured: false).how, "beamer")
+        XCTAssertFalse(Beamer.display(isScreen: false, connected: true, mode: .extend, captured: false).shown)
+        // Spiegeln: alles zählt als sichtbar.
+        XCTAssertEqual(Beamer.display(isScreen: false, connected: true, mode: .mirror, captured: false).how, "mirror")
+        // Aufnahme/AirPlay geht vor.
+        let c = Beamer.display(isScreen: false, connected: false, mode: .extend, captured: true)
+        XCTAssertTrue(c.shown)
+        XCTAssertEqual(c.how, "capture")
+    }
 }

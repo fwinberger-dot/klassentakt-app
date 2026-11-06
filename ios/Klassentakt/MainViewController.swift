@@ -29,6 +29,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     private lazy var pip = BeamerPiP(host: self)
     lazy var downloads = DownloadHandler(host: self)
     private var topIsDark = false
+    private var lastDisplay: [ObjectIdentifier: String] = [:]
 
     // MARK: Aufbau
 
@@ -49,9 +50,14 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.userContentController.add(WeakScriptHandler(self), name: "ktTop")
         config.userContentController.add(shell, name: Shell.handlerName)
         shell.onSend = { [weak self] name, payload, wv in self?.handleShell(name, payload, from: wv) }
+        // Bildschirmaufnahme / AirPlay-Synchronisierung → `display` {how: "capture"}
+        NotificationCenter.default.addObserver(forName: UIScreen.capturedDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.updateDisplay()
+        }
         shell.onListen = { [weak self] name in
             if name == "file" { self?.flushPendingFiles() }
             if name == "camera" { self?.shell.emit("camera", ["open": Beamer.shared.cameraView != nil]) }
+            if name == "display" { self?.updateDisplay(force: true) }
         }
 
         topBar.backgroundColor = .white
@@ -219,6 +225,21 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         let js = "window.dispatchEvent(new CustomEvent('klassentakt-beamer', {detail: {open: \(Beamer.shared.screenWebView != nil), extern: \(Beamer.shared.isExternalConnected)}}))"
         webView?.evaluateJavaScript(js, completionHandler: nil)
         shell.emit("beamer", Beamer.shared.stateForWeb)
+        updateDisplay()
+    }
+
+    /// `display {shown, how}` pro WebView, nur bei Änderung (oder an alle, `force`).
+    func updateDisplay(force: Bool = false, answer: WKWebView? = nil) {
+        let b = Beamer.shared
+        var captured = UIScreen.main.isCaptured
+        if #available(iOS 17.0, *), let sc = view.window?.windowScene { captured = captured || sc.traitCollection.sceneCaptureState == .active }
+        for (wv, isScreen) in [(webView as WKWebView?, false), (b.screenWebView, true)] {
+            guard let wv = wv else { continue }
+            let d = Beamer.display(isScreen: isScreen, connected: b.isExternalConnected, mode: b.mode, captured: captured)
+            let key = "\(d.shown)|\(d.how)", id = ObjectIdentifier(wv)
+            guard force || wv === answer || lastDisplay[id] != key else { continue }
+            if shell.emit("display", ["shown": d.shown, "how": d.how], to: wv, always: wv === answer) { lastDisplay[id] = key }
+        }
     }
 
     /// Nachrichten der Web-App über window.klassentaktShell.send (Vertrag: docs/Bruecke-PaketA.md).
@@ -237,6 +258,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
                            scanFormat: (payload["scanFormat"] as? String).flatMap(ScanFormat.init(rawValue:)))
             }
             if !want { cam?.close() }
+        case "display-get":
+            if let wv = wv { updateDisplay(answer: wv) }
         case "editing":
             // Bearbeiten-Popup im Screen: Beamer behält das letzte Bild, das Popup bleibt privat.
             Beamer.shared.setEditing(payload["open"] as? Bool ?? false)
