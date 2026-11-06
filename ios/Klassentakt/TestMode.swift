@@ -6,7 +6,7 @@ import WebKit
 /// - Kamera und Scanner nehmen ein erfundenes Test-Arbeitsblatt statt der Kamera.
 /// - `-ktBeamerPreview`: zeigt den Beamer verkleinert oben links (der Simulator hat keinen externen Bildschirm).
 /// - `-ktRun <befehl>`: führt nach dem Start einen Befehl aus (ShellCommand, Demo oder `web-open-camera`).
-/// - `-ktDemoKlasse`: Web-App als Einzelplatz-Version (`WP_OFFLINE`) mit ihrer Demo-Woche, alle Namen erfunden.
+/// - `-ktDemoKlasse`: Web-App als lokaler Prototyp mit ihrer Demo-Woche (über `DemoScheme`), alle Namen erfunden.
 enum TestMode {
     static var on: Bool {
         #if DEBUG
@@ -18,35 +18,6 @@ enum TestMode {
     static var beamerPreview: Bool { on && ProcessInfo.processInfo.arguments.contains("-ktBeamerPreview") }
     static var demoClass: Bool { on && ProcessInfo.processInfo.arguments.contains("-ktDemoKlasse") }
 
-    /// Einzelplatz-Version der Web-App mit ihrer Demo-Woche. Die Demo enthält echte Namen; sie werden beim
-    /// Speichern durch erfundene ersetzt, danach lädt die Seite einmal neu (erst dann gibt es Bilder).
-    static func demoClassScript() -> WKUserScript {
-        let js = """
-        (function(){
-          var R = [["6a · Andelfingen Zielacker","5b · Schulhaus Beispielwil"], ["Schulhaus Zielacker, Andelfingen","Schulhaus Sonnenberg, Beispielwil"],
-            ["Herr Winberger","Frau Muster"], ["Frau Wacker","Frau Beispiel"], ["Herr Rüegsegger","Herr Probst"],
-            ["Florian","Lena"], ["Selina","Mira"], ["Patrick","Jonas"], ["Andelfingen","Beispielwil"], ["Zielacker","Sonnenberg"]];
-          var KZ = {"FW":"LM", "SW":"MB", "PR":"JP"};
-          function fix(x){
-            if (typeof x === "string") { if (KZ[x]) return KZ[x]; R.forEach(function(p){ x = x.split(p[0]).join(p[1]); }); return x; }
-            if (Array.isArray(x)) return x.map(fix);
-            if (x && typeof x === "object") { var o = {}; for (var k in x) o[k] = fix(x[k]); return o; }
-            return x;
-          }
-          var set = Storage.prototype.setItem;
-          Storage.prototype.setItem = function(k, v){
-            if (this === window.localStorage && /^wp_/.test(k)) { try { v = JSON.stringify(fix(JSON.parse(v))); } catch(e) { v = fix(String(v)); } }
-            return set.call(this, k, v);
-          };
-          window.WP_OFFLINE = { id: "kt-test-5b", me: "florian", cells: { privat: {}, klasse: {} } };
-          if (!/classroom=1/.test(location.search) && !sessionStorage.getItem("ktDemoReady")) {
-            window.__ktDemo = "pending";
-            addEventListener("load", function(){ setTimeout(function(){ sessionStorage.setItem("ktDemoReady", "1"); location.reload(); }, 4000); });
-          } else window.__ktDemo = "ready";
-        })();
-        """
-        return WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true)
-    }
     static var run: String? {
         guard on else { return nil }
         let a = ProcessInfo.processInfo.arguments
@@ -213,7 +184,7 @@ extension MainViewController {
 extension MainViewController {
     /// Befehl erst ausführen, wenn klassentakt.ch geladen ist (sonst geht z.B. der Screen noch nicht auf).
     func whenPageLoaded(tries: Int, _ then: @escaping () -> Void) {
-        webView.evaluateJavaScript("document.readyState === 'complete' && !!window.klassentaktShell && window.__ktDemo !== 'pending'") { [weak self] r, _ in
+        webView.evaluateJavaScript("document.readyState === 'complete' && !!window.klassentaktShell") { [weak self] r, _ in
             if (r as? Bool) == true || tries <= 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { then() }; return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.whenPageLoaded(tries: tries - 1, then) }
         }
@@ -289,3 +260,59 @@ enum TestButtons {
 }
 
 enum TestModeState { static var started = false }
+
+/// UI-Test `-ktDemoKlasse`: liefert die Web-App von klassentakt.ch unter `ktdemo://klassentakt-demo/` aus.
+/// Ausserhalb von klassentakt.ch startet sie als lokaler Prototyp mit ihrer Demo-Woche (ohne Anmeldung, nichts geht
+/// an den Server). Die Demo enthält echte Namen; sie werden vor dem Ausliefern durch erfundene ersetzt.
+final class DemoScheme: NSObject, WKURLSchemeHandler {
+    static let scheme = "ktdemo", host = "klassentakt-demo"
+    static let start = URL(string: "ktdemo://klassentakt-demo/")!
+    private static var html: Data?
+    private var stopped = Set<ObjectIdentifier>()
+
+    static let names: [(String, String)] = [
+        ("6a · Andelfingen Zielacker", "5b · Schulhaus Beispielwil"), ("Schulhaus Zielacker, Andelfingen", "Schulhaus Sonnenberg, Beispielwil"),
+        ("Herr Winberger", "Frau Muster"), ("Frau Wacker", "Frau Beispiel"), ("Herr Rüegsegger", "Herr Probst"),
+        ("name:\"Florian\"", "name:\"Lena\""), ("name:\"Selina\"", "name:\"Mira\""), ("name:\"Patrick\"", "name:\"Jonas\""),
+        ("kurz:\"FW\"", "kurz:\"LM\""), ("kurz:\"SW\"", "kurz:\"MB\""), ("kurz:\"PR\"", "kurz:\"JP\""),
+        ("wer:\"Florian\"", "wer:\"Lena\""), ("Andelfingen", "Beispielwil"), ("Zielacker", "Sonnenberg"),
+    ]
+
+    /// Nur innerhalb von `function seed(){ … }` ersetzen, der übrige Code bleibt unberührt.
+    static func sanitize(_ page: String) -> String {
+        guard let a = page.range(of: "function seed(){") else { return page }
+        let rest = page[a.lowerBound...]
+        guard let b = rest.range(of: "P._save && P._save();") else { return page }
+        var seed = String(page[a.lowerBound..<b.upperBound])
+        for (from, to) in names { seed = seed.replacingOccurrences(of: from, with: to) }
+        return String(page[..<a.lowerBound]) + seed + String(page[b.upperBound...])
+    }
+
+    func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
+        guard let url = task.request.url else { return }
+        guard url.path.isEmpty || url.path == "/" else {
+            task.didReceive(HTTPURLResponse(url: url, statusCode: 404, httpVersion: nil, headerFields: nil)!)
+            task.didFinish()
+            return
+        }
+        let id = ObjectIdentifier(task)
+        let reply: (Data) -> Void = { [weak self] data in
+            DispatchQueue.main.async {
+                guard let self = self, !self.stopped.contains(id) else { return }
+                task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil,
+                                                headerFields: ["Content-Type": "text/html; charset=utf-8"])!)
+                task.didReceive(data)
+                task.didFinish()
+            }
+        }
+        if let h = Self.html { reply(h); return }
+        URLSession.shared.dataTask(with: URL(string: "https://klassentakt.ch/")!) { d, _, _ in
+            let page = Self.sanitize(String(decoding: d ?? Data(), as: UTF8.self))
+            let data = Data(page.utf8)
+            Self.html = data
+            reply(data)
+        }.resume()
+    }
+
+    func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) { stopped.insert(ObjectIdentifier(task)) }
+}

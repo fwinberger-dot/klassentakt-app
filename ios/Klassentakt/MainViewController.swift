@@ -45,7 +45,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.applicationNameForUserAgent = "KlassentaktApp/\(Self.appVersion)"
         config.userContentController.addUserScript(Shell.script(version: Self.appVersion))
         config.userContentController.addUserScript(Self.topColorScript())
-        if TestMode.demoClass { config.userContentController.addUserScript(TestMode.demoClassScript()) }
+        if TestMode.demoClass { config.setURLSchemeHandler(DemoScheme(), forURLScheme: DemoScheme.scheme) }
         config.userContentController.add(WeakScriptHandler(self), name: "ktTop")
         config.userContentController.add(shell, name: Shell.handlerName)
         shell.onSend = { [weak self] name, payload, wv in self?.handleShell(name, payload, from: wv) }
@@ -98,7 +98,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         pip.isHidden = true
         view.addSubview(pip)
         view.bringSubviewToFront(toastLabel)
-        webView.load(URLRequest(url: Self.startURL))
+        webView.load(URLRequest(url: TestMode.demoClass ? DemoScheme.start : Self.startURL))
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -160,7 +160,9 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
 
     private static func host(_ url: URL?) -> String { url?.host?.lowercased() ?? "" }
     private static func matches(_ host: String, _ list: [String]) -> Bool { list.contains { host == $0 || host.hasSuffix("." + $0) } }
-    static func isApp(_ url: URL?) -> Bool { matches(host(url), appHosts) }
+    static func isApp(_ url: URL?) -> Bool {
+        matches(host(url), appHosts) || (TestMode.demoClass && url?.scheme == DemoScheme.scheme)
+    }
     static func isLogin(_ url: URL?) -> Bool { matches(host(url), loginHosts) }
     static func isGoogleAuth(_ url: URL?) -> Bool { matches(host(url), ["accounts.google.com"]) }
     static func isGoogleStart(_ url: URL?) -> Bool { isApp(url) && (url?.path.hasPrefix("/auth/google/start") ?? false) }

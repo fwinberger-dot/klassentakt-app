@@ -159,7 +159,8 @@ extension MainViewController {
     /// Classroom Screen öffnen wie aus der Web-App (window.open → createWebViewWith → Beamer).
     func openScreen() {
         guard Self.isApp(webView.url) else { toast("Classroom Screen geht erst nach der Anmeldung"); return }
-        webView.evaluateJavaScript("window.open(location.origin + '/?classroom=1', 'wp_classroom')", completionHandler: nil)
+        let origin = TestMode.demoClass ? "'\(DemoScheme.scheme)://\(DemoScheme.host)'" : "location.origin"
+        webView.evaluateJavaScript("window.open(\(origin) + '/?classroom=1', 'wp_classroom')", completionHandler: nil)
     }
 
     /// Tastendruck im Screen nachstellen (csKey hört auf keydown am document).

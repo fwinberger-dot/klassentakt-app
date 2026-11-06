@@ -88,7 +88,9 @@ final class Shell: NSObject, WKScriptMessageHandler {
         return Message(kind: kind, name: name, payload: d["payload"] as? [String: Any] ?? [:])
     }
 
-    static func trusted(_ host: String) -> Bool { host == "klassentakt.ch" || host.hasSuffix(".klassentakt.ch") }
+    static func trusted(_ host: String) -> Bool {
+        host == "klassentakt.ch" || host.hasSuffix(".klassentakt.ch") || (TestMode.demoClass && host == DemoScheme.host)
+    }
 
     func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
         // Nur die Hauptseite von klassentakt.ch, keine eingebetteten Fremd-Inhalte (YouTube, …).
