@@ -7,6 +7,8 @@ const fs = require('fs');
 const beamer = require('./beamer');
 // Mac App Store (process.mas): Apple aktualisiert die App, darum dort kein eigenes Update (Dateien fehlen im Paket).
 const updater = process.mas ? null : require('./updater');
+const { createInk, binPath } = require('./ink');
+const ink = createInk(binPath(app));
 
 const START_URL = 'https://klassentakt.ch/';
 const APP_HOSTS = ['klassentakt.ch'];
@@ -90,6 +92,9 @@ function saveState() {
   try { fs.writeFileSync(stateFile(), JSON.stringify({ ...win.getNormalBounds(), maximized: win.isMaximized() })); } catch {}
 }
 
+/** Angaben für preload.js (die Brücke läuft in der Sandbox und kann selbst nichts nachsehen). */
+const shellArgs = () => [`--kt-shell-version=${app.getVersion()}`, ...(ink.available() ? ['--kt-ink'] : [])];
+
 /* ---------- Hauptfenster ---------- */
 function createWindow(startUrl) {
   const st = loadState();
@@ -100,7 +105,7 @@ function createWindow(startUrl) {
     backgroundColor: '#fff4e6',
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`],
+      preload: path.join(__dirname, 'preload.js'), additionalArguments: shellArgs(),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -131,7 +136,7 @@ function wireNavigation(wc) {
         action: 'allow',
         overrideBrowserWindowOptions: {
           ...beamer.windowOptions(win),
-          webPreferences: { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true },
+          webPreferences: { preload: path.join(__dirname, 'preload.js'), additionalArguments: shellArgs(), contextIsolation: true, sandbox: true },
         },
       };
     }
@@ -140,7 +145,7 @@ function wireNavigation(wc) {
         action: 'allow',
         overrideBrowserWindowOptions: {
           width: 1100, height: 780, autoHideMenuBar: true,
-          webPreferences: { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true },
+          webPreferences: { preload: path.join(__dirname, 'preload.js'), additionalArguments: shellArgs(), contextIsolation: true, sandbox: true },
         },
       };
     }
@@ -221,6 +226,12 @@ function wireBridge() {
   ipcMain.handle('beamer:moveTo', (e, id) => (fromApp(e) ? beamer.moveTo(Number(id)) : false));
   ipcMain.handle('beamer:next', (e) => (fromApp(e) ? beamer.moveNext() : false));
   ipcMain.handle('beamer:fullscreen', (e) => (fromApp(e) ? beamer.toggleFullscreen() : false));
+  // send/on: Nachrichten der Web-App; die Antwort geht an das Fenster, das gefragt hat
+  ipcMain.on('shell:send', (e, name, payload) => {
+    if (!fromApp(e)) return;
+    const wc = e.sender;
+    if (name === 'recognize-ink') ink.recognize(payload, (r) => { if (!wc.isDestroyed()) wc.send('shell:event', 'ink-text', r); });
+  });
 }
 function broadcastBeamer() {
   const st = beamer.state();
@@ -306,6 +317,7 @@ app.whenReady().then(() => {
     setTimeout(() => updater.check(false), 8000);
     setInterval(() => updater.check(false), 6 * 60 * 60 * 1000); // App läuft oft tagelang
   }
+  app.on('will-quit', () => ink.stop());
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

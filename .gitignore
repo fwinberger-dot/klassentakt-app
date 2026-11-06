@@ -4,3 +4,4 @@ dist/
 ios/Klassentakt.xcodeproj/
 ios/build/
 build/mas.provisionprofile
+native/bin/

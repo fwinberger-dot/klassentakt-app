@@ -20,6 +20,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - name: Handschrift-Hilfsprogramm kt-ink bauen (Vision)
+        run: npm run build:ink
       - name: App bauen
         env:
           # Sobald diese Secrets in GitHub hinterlegt sind, wird mit Developer ID signiert und von Apple geprüft.
@@ -45,6 +47,10 @@ jobs:
         run: |
           APP=$(ls -d dist/mac-universal/*.app | head -1)
           codesign -dv --verbose=2 "$APP" 2>&1 | grep -E "Authority|TeamIdentifier|Runtime" || true
+          INK="$APP/Contents/Resources/kt-ink"
+          test -x "$INK" || { echo "::error::kt-ink fehlt im Paket"; exit 1; }
+          lipo -info "$INK"
+          codesign -v "$INK" || { echo "::error::kt-ink nicht signiert"; exit 1; }
           spctl -a -vvv -t exec "$APP" 2>&1 || true
           DMG=$(ls dist/Klassentakt-*[0-9].dmg | head -1)
           xcrun stapler validate "$APP" || true
