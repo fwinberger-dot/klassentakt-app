@@ -30,10 +30,11 @@ final class Shell: NSObject, WKScriptMessageHandler {
 
     static func script(version: String) -> WKUserScript {
         let feats = features.map { "'\($0)'" }.joined(separator: ",")
+        let demo = TestMode.demoClass ? "'\(DemoScheme.host)'" : "null" // UI-Test -ktDemoKlasse
         let js = """
         (function(){
           var h = location.hostname;
-          if (h !== 'klassentakt.ch' && !h.endsWith('.klassentakt.ch')) return;
+          if (h !== 'klassentakt.ch' && !h.endsWith('.klassentakt.ch') && h !== \(demo)) return;
           if (window.klassentaktShell) return;
           var L = {}, parts = {};
           function post(type, name, payload){ try { window.webkit.messageHandlers.kt.postMessage({ type: type, name: String(name), payload: payload == null ? {} : payload }); } catch(e){} }
