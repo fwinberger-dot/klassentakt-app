@@ -17,6 +17,7 @@ if (trusted) {
     store: !!process.mas, // Mac App Store: Updates über Apple
     features: Object.freeze([
       'beamer',
+      'screen-control', // Menü «Screen steuern» (⌘⇧S) → onCommand({name:'screen-control'})
       ...(process.mas ? [] : ['update']),
       ...(ink ? ['ink-text'] : []),
     ]),
@@ -26,6 +27,12 @@ if (trusted) {
       const h = (_e, n, p) => { if (n === name) { try { fn(p); } catch {} } };
       ipcRenderer.on('shell:event', h);
       return () => ipcRenderer.removeListener('shell:event', h);
+    },
+    onCommand: (fn) => {
+      if (typeof fn !== 'function') return () => {};
+      const h = (_e, cmd) => { try { fn(cmd); } catch {} };
+      ipcRenderer.on('shell:command', h);
+      return () => ipcRenderer.removeListener('shell:command', h);
     },
     beamer: Object.freeze({
       // { open, fullscreen, onDisplay, awake, settings, displays:[{id,label,primary,internal}] }

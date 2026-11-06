@@ -208,6 +208,7 @@ function beamerMenu() {
       { label: s.open ? 'Classroom Screen ist offen' : 'Classroom Screen ist nicht offen', enabled: false },
       { label: 'Screen auf nächsten Bildschirm', accelerator: 'CmdOrCtrl+Shift+B', enabled: s.open && s.displays.length > 1, click: () => beamer.moveNext() },
       { label: 'Screen-Vollbild an/aus', accelerator: 'CmdOrCtrl+Shift+F', enabled: s.open, click: () => beamer.toggleFullscreen() },
+      { label: 'Screen steuern', accelerator: 'CmdOrCtrl+Shift+S', enabled: s.open, click: () => shellCommand('screen-control') },
       { type: 'separator' },
       { label: 'Screen anzeigen auf', enabled: s.open && s.displays.length > 1, submenu: shows.length ? shows : [{ label: 'Kein Bildschirm', enabled: false }] },
       { type: 'separator' },
@@ -233,6 +234,10 @@ function wireBridge() {
     const wc = e.sender;
     if (name === 'recognize-ink') ink.recognize(payload, (r) => { if (!wc.isDestroyed()) wc.send('shell:event', 'ink-text', r); });
   });
+}
+/** Befehl an die Web-App im Hauptfenster (Planer), nicht ans Screen-Fenster. */
+function shellCommand(name) {
+  try { if (win && !win.isDestroyed() && isApp(win.webContents.getURL())) win.webContents.send('shell:command', { name }); } catch {}
 }
 function broadcastBeamer() {
   const st = beamer.state();
