@@ -173,7 +173,8 @@ final class ShotsTests: XCTestCase {
         // Bild im Bild grösser ziehen (Griff oben links), dann mit «–» ausblenden und über den Griff zurückholen.
         let grip = app.descendants(matching: .any)["pipResize"]
         if grip.waitForExistence(timeout: 5) {
-            grip.press(forDuration: 0.3, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.3)))
+            grip.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.3, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.3)))
             pause(3)
             pair("r5-7-bild-im-bild-gross")
         }
