@@ -133,6 +133,43 @@ final class ShotsTests: XCTestCase {
         shot("2-beamer-8-visualizer-ohne-foto")
     }
 
+    // Runde 5 – Bild im Bild im Unterricht: Woche im Planer, Screen steuern, zurück. Erfundene Klasse (-ktDemoKlasse).
+    // Pro Schritt zwei Bilder: «-beamer» mit Vorschau (oben links ausgeschnitten = Beamer), «-ipad» ohne Vorschau.
+    func test6Runde5() {
+        launch(["-ktBeamerPreview", "-ktDemoKlasse", "-ktRun", "screen-toggle"])
+        let live = app.descendants(matching: .any)["pipLive"]
+        XCTAssertTrue(live.waitForExistence(timeout: 60))
+        pause(6)
+        pair("r5-1-woche-bild-im-bild")
+        tap(live)
+        pause(3)
+        XCTAssertTrue(app.buttons["screenToPlanner"].waitForExistence(timeout: 10))
+        pair("r5-2-steuern-auf-ipad")
+        app.typeKey("t", modifierFlags: [.command, .shift])
+        pause(4)
+        pair("r5-3-timer-live")
+        app.typeKey(XCUIKeyboardKey.rightArrow.rawValue, modifierFlags: [.command, .option])
+        pause(3)
+        pair("r5-4-phase-weiter")
+        tap(app.buttons["ktEditToggle"])
+        pause(3)
+        pair("r5-5-bearbeiten-beamer-steht")
+        tap(app.buttons["ktEditToggle"])
+        pause(2)
+        tap(app.buttons["screenToPlanner"])
+        pause(4)
+        pair("r5-6-zurueck-in-der-woche")
+    }
+
+    private func pair(_ name: String) {
+        shot(name + "-beamer")
+        tap(app.buttons["ktPreviewToggle"])
+        pause(0.8)
+        shot(name + "-ipad")
+        tap(app.buttons["ktPreviewToggle"])
+        pause(0.8)
+    }
+
     // 5 – Teilen-Menü und Dateien
     func test5Dateien() {
         launch(["-ktRun", "demo-export"])

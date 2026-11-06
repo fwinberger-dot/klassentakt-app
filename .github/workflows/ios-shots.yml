@@ -8,6 +8,9 @@ on:
       runner:
         description: 'macOS-Runner (bei Engpass auf arm64 z. B. macos-15-intel)'
         default: macos-latest
+      nur:
+        description: 'Nur diese Tests (z. B. test6Runde5:6-runde5), leer = alle'
+        default: ''
   # Neue Workflows lassen sich erst von Hand starten, wenn sie auf main liegen → auch beim Push auf den Paket-A-Branch.
   push:
     branches: ['claude/ipad-paket-a-*']
@@ -48,7 +51,8 @@ jobs:
         working-directory: ios
         run: |
           mkdir -p shots
-          for t in test4Kuerzel:4-kuerzel test3Scanner:3-scanner test1Kamera:1-kamera test2Beamer:2-beamer test5Dateien:5-dateien; do
+          ALLE="test4Kuerzel:4-kuerzel test3Scanner:3-scanner test1Kamera:1-kamera test2Beamer:2-beamer test5Dateien:5-dateien test6Runde5:6-runde5"
+          for t in ${{ inputs.nur || '$ALLE' }}; do
             name=${t%%:*}; video=${t##*:}
             xcrun simctl io "$UDID" recordVideo --codec=h264 --force "shots/$video.mp4" &
             REC=$!

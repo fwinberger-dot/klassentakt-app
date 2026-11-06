@@ -45,6 +45,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         config.applicationNameForUserAgent = "KlassentaktApp/\(Self.appVersion)"
         config.userContentController.addUserScript(Shell.script(version: Self.appVersion))
         config.userContentController.addUserScript(Self.topColorScript())
+        if TestMode.demoClass { config.userContentController.addUserScript(TestMode.demoClassScript()) }
         config.userContentController.add(WeakScriptHandler(self), name: "ktTop")
         config.userContentController.add(shell, name: Shell.handlerName)
         shell.onSend = { [weak self] name, payload, wv in self?.handleShell(name, payload, from: wv) }

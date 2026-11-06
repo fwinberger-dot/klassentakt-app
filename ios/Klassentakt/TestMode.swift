@@ -1,10 +1,12 @@
 import UIKit
+import WebKit
 
 /// UI-Test-Modus für Screenshots und Videos (Workflow «Klassentakt-shots-paketA").
 /// Nur in Debug-Builds und nur mit dem Launch-Argument `-ktUITest`. Im Release ist `on` immer false.
 /// - Kamera und Scanner nehmen ein erfundenes Test-Arbeitsblatt statt der Kamera.
 /// - `-ktBeamerPreview`: zeigt den Beamer verkleinert oben links (der Simulator hat keinen externen Bildschirm).
 /// - `-ktRun <befehl>`: führt nach dem Start einen Befehl aus (ShellCommand, Demo oder `web-open-camera`).
+/// - `-ktDemoKlasse`: Web-App als Einzelplatz-Version (`WP_OFFLINE`) mit ihrer Demo-Woche, alle Namen erfunden.
 enum TestMode {
     static var on: Bool {
         #if DEBUG
@@ -14,6 +16,37 @@ enum TestMode {
         #endif
     }
     static var beamerPreview: Bool { on && ProcessInfo.processInfo.arguments.contains("-ktBeamerPreview") }
+    static var demoClass: Bool { on && ProcessInfo.processInfo.arguments.contains("-ktDemoKlasse") }
+
+    /// Einzelplatz-Version der Web-App mit ihrer Demo-Woche. Die Demo enthält echte Namen; sie werden beim
+    /// Speichern durch erfundene ersetzt, danach lädt die Seite einmal neu (erst dann gibt es Bilder).
+    static func demoClassScript() -> WKUserScript {
+        let js = """
+        (function(){
+          var R = [["6a · Andelfingen Zielacker","5b · Schulhaus Beispielwil"], ["Schulhaus Zielacker, Andelfingen","Schulhaus Sonnenberg, Beispielwil"],
+            ["Herr Winberger","Frau Muster"], ["Frau Wacker","Frau Beispiel"], ["Herr Rüegsegger","Herr Probst"],
+            ["Florian","Lena"], ["Selina","Mira"], ["Patrick","Jonas"], ["Andelfingen","Beispielwil"], ["Zielacker","Sonnenberg"]];
+          var KZ = {"FW":"LM", "SW":"MB", "PR":"JP"};
+          function fix(x){
+            if (typeof x === "string") { if (KZ[x]) return KZ[x]; R.forEach(function(p){ x = x.split(p[0]).join(p[1]); }); return x; }
+            if (Array.isArray(x)) return x.map(fix);
+            if (x && typeof x === "object") { var o = {}; for (var k in x) o[k] = fix(x[k]); return o; }
+            return x;
+          }
+          var set = Storage.prototype.setItem;
+          Storage.prototype.setItem = function(k, v){
+            if (this === window.localStorage && /^wp_/.test(k)) { try { v = JSON.stringify(fix(JSON.parse(v))); } catch(e) { v = fix(String(v)); } }
+            return set.call(this, k, v);
+          };
+          window.WP_OFFLINE = { id: "kt-test-5b", me: "florian", cells: { privat: {}, klasse: {} } };
+          if (!/classroom=1/.test(location.search) && !sessionStorage.getItem("ktDemoReady")) {
+            window.__ktDemo = "pending";
+            addEventListener("load", function(){ setTimeout(function(){ sessionStorage.setItem("ktDemoReady", "1"); location.reload(); }, 4000); });
+          } else window.__ktDemo = "ready";
+        })();
+        """
+        return WKUserScript(source: js, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+    }
     static var run: String? {
         guard on else { return nil }
         let a = ProcessInfo.processInfo.arguments
@@ -159,7 +192,7 @@ extension MainViewController {
     func startTestMode() {
         guard TestMode.on, !TestModeState.started, let scene = view.window?.windowScene else { return }
         TestModeState.started = true
-        if TestMode.beamerPreview { BeamerPreviewWindow.install(in: scene) }
+        if TestMode.beamerPreview { BeamerPreviewWindow.install(in: scene); TestButtons.install(in: scene, host: self) }
         guard let r = TestMode.run else { return }
         whenPageLoaded(tries: 25) { [weak self] in
             guard let self = self else { return }
@@ -180,7 +213,7 @@ extension MainViewController {
 extension MainViewController {
     /// Befehl erst ausführen, wenn klassentakt.ch geladen ist (sonst geht z.B. der Screen noch nicht auf).
     func whenPageLoaded(tries: Int, _ then: @escaping () -> Void) {
-        webView.evaluateJavaScript("document.readyState === 'complete' && !!window.klassentaktShell") { [weak self] r, _ in
+        webView.evaluateJavaScript("document.readyState === 'complete' && !!window.klassentaktShell && window.__ktDemo !== 'pending'") { [weak self] r, _ in
             if (r as? Bool) == true || tries <= 0 { DispatchQueue.main.asyncAfter(deadline: .now() + 1) { then() }; return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self?.whenPageLoaded(tries: tries - 1, then) }
         }
@@ -203,12 +236,55 @@ extension MainViewController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
             guard let self = self, let screen = Beamer.shared.screenWebView else { return }
             Beamer.shared.control(true)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                self.webView.evaluateJavaScript("klassentaktShell.send('editing', {open: true})", completionHandler: nil)
-                let pop = "(function(){ var d = document.createElement('div'); d.textContent = 'Schritt bearbeiten (Test): Einstieg – Brüche am Kreis'; d.style.cssText = 'position:fixed;left:25%;top:30%;width:50%;padding:48px;background:#fff;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font:600 40px system-ui;z-index:99999;color:#123'; document.body.appendChild(d); })()"
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { screen.evaluateJavaScript(pop, completionHandler: nil) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.testEditPopup(open: true, in: screen, text: "Einstieg – Brüche am Kreis") }
+        }
+    }
+
+    /// `editing` senden und ein erfundenes Popup in den Screen legen bzw. wieder entfernen.
+    func testEditPopup(open: Bool, in screen: WKWebView, text: String) {
+        if open {
+            webView.evaluateJavaScript("klassentaktShell.send('editing', {open: true})", completionHandler: nil)
+            let pop = "(function(){ var d = document.createElement('div'); d.id = 'ktTestPop'; d.textContent = 'Schritt bearbeiten (Test): \(text)'; d.style.cssText = 'position:fixed;left:25%;top:30%;width:50%;padding:48px;background:#fff;border-radius:24px;box-shadow:0 20px 60px rgba(0,0,0,.35);font:600 40px system-ui;z-index:99999;color:#123'; document.body.appendChild(d); })()"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { screen.evaluateJavaScript(pop, completionHandler: nil) }
+        } else {
+            screen.evaluateJavaScript("var d = document.getElementById('ktTestPop'); if (d) d.remove();", completionHandler: nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.webView.evaluateJavaScript("klassentaktShell.send('editing', {open: false})", completionHandler: nil)
             }
         }
+    }
+}
+
+/// Unsichtbare Knöpfe für den UI-Test (eigenes Fenster, damit sie auch über dem Screen erreichbar sind):
+/// Beamer-Vorschau aus/ein (für saubere iPad-Bilder) und Bearbeiten-Popup auf/zu.
+enum TestButtons {
+    static var window: UIWindow?
+    static var editOpen = false
+
+    static func install(in scene: UIWindowScene, host: MainViewController) {
+        let w = UIWindow(windowScene: scene)
+        w.windowLevel = .alert + 2
+        w.frame = CGRect(x: 0, y: scene.coordinateSpace.bounds.height - 30, width: 60, height: 30)
+        let root = UIViewController()
+        root.view.backgroundColor = .clear
+        w.rootViewController = root
+        func add(_ id: String, x: CGFloat, _ act: @escaping () -> Void) {
+            let b = UIButton(frame: CGRect(x: x, y: 0, width: 30, height: 30))
+            b.backgroundColor = .black
+            b.alpha = 0.02
+            b.accessibilityIdentifier = id
+            b.accessibilityLabel = id
+            b.addAction(UIAction { _ in act() }, for: .touchUpInside)
+            root.view.addSubview(b)
+        }
+        add("ktPreviewToggle", x: 0) { BeamerPreviewWindow.current?.isHidden.toggle() }
+        add("ktEditToggle", x: 30) { [weak host] in
+            guard let host = host, let screen = Beamer.shared.screenWebView else { return }
+            editOpen.toggle()
+            host.testEditPopup(open: editOpen, in: screen, text: "Stromkreis bauen, Schaltplan zeichnen")
+        }
+        w.isHidden = false
+        window = w
     }
 }
 
