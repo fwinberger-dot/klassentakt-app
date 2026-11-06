@@ -34,7 +34,8 @@ final class Shell: NSObject, WKScriptMessageHandler {
         let js = """
         (function(){
           var h = location.hostname;
-          if (h !== 'klassentakt.ch' && !h.endsWith('.klassentakt.ch') && h !== \(demo)) return;
+          var demo = h === \(demo) && !/classroom=1/.test(location.search); // Demo: Screen nimmt die Brücke vom Planer (opener)
+          if (h !== 'klassentakt.ch' && !h.endsWith('.klassentakt.ch') && !demo) return;
           if (window.klassentaktShell) return;
           var L = {}, parts = {};
           function post(type, name, payload){ try { window.webkit.messageHandlers.kt.postMessage({ type: type, name: String(name), payload: payload == null ? {} : payload }); } catch(e){} }
