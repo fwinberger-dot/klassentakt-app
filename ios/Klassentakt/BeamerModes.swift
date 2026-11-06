@@ -100,9 +100,25 @@ final class LiveMirror {
 }
 
 /// Bild im Bild auf dem iPad (Planer): zeigt live, was am Beamer läuft. Antippen = Screen gross zum Steuern.
-/// Verschiebbar. Beim Spiegeln nur noch der Schalter (das iPad-Bild ist ja schon am Beamer).
+/// Verschiebbar, Grösse frei (zwei Finger oder Griff oben links, wird gemerkt), «–» blendet es aus
+/// (zurück über den Griff am rechten Rand oder ⌘⇧B). Beim Spiegeln nur noch der Schalter.
 final class BeamerPiP: UIView {
     private let live = UIView()
+    private let hideBtn = UIButton(type: .system)
+    private let grip = UIImageView(image: UIImage(systemName: "arrow.up.left.and.arrow.down.right"))
+    private var liveWidth: NSLayoutConstraint!
+    private var pinchStart: CGFloat = 0
+    /// Ausgeblendet mit «–» (gilt bis zum Zurückholen, auch über Neustarts).
+    private(set) var minimized = UserDefaults.standard.bool(forKey: BeamerPiP.minimizedKey)
+    var onMinimizedChange: (() -> Void)?
+
+    static let widthKey = "ktPiPBreite", minimizedKey = "ktPiPAus"
+    static let widthRange: ClosedRange<CGFloat> = 200...720
+    static func clampWidth(_ w: CGFloat) -> CGFloat { min(max(w, widthRange.lowerBound), widthRange.upperBound).rounded() }
+    static var savedWidth: CGFloat {
+        let w = CGFloat(UserDefaults.standard.double(forKey: widthKey))
+        return w > 0 ? clampWidth(w) : liveSize.width
+    }
     private let caption = UILabel()
     private var mode: UISegmentedControl!
     private let screenBtn = UIButton(type: .system)
@@ -131,6 +147,24 @@ final class BeamerPiP: UIView {
         live.accessibilityTraits = .button
         live.addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapLive)))
 
+        hideBtn.setImage(UIImage(systemName: "minus", withConfiguration: UIImage.SymbolConfiguration(pointSize: 15, weight: .bold)), for: .normal)
+        hideBtn.tintColor = .white
+        hideBtn.backgroundColor = UIColor(white: 0.15, alpha: 0.85)
+        hideBtn.layer.cornerRadius = 15
+        hideBtn.accessibilityIdentifier = "pipHide"
+        hideBtn.accessibilityLabel = "Bild im Bild ausblenden"
+        hideBtn.translatesAutoresizingMaskIntoConstraints = false
+        hideBtn.addAction(UIAction { [weak self] _ in self?.setMinimized(true) }, for: .touchUpInside)
+
+        grip.tintColor = .white
+        grip.contentMode = .center
+        grip.backgroundColor = UIColor(white: 0.15, alpha: 0.85)
+        grip.layer.cornerRadius = 15
+        grip.isUserInteractionEnabled = true
+        grip.accessibilityIdentifier = "pipResize"
+        grip.translatesAutoresizingMaskIntoConstraints = false
+        grip.addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(resize(_:))))
+
         caption.text = "Beamer · antippen zum Steuern"
         caption.textColor = UIColor(white: 1, alpha: 0.8)
         caption.font = .systemFont(ofSize: 12, weight: .semibold)
@@ -156,26 +190,38 @@ final class BeamerPiP: UIView {
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
-        liveHeight = live.heightAnchor.constraint(equalToConstant: Self.liveSize.height)
+        let w = Self.savedWidth
+        liveHeight = live.heightAnchor.constraint(equalToConstant: w * 9 / 16)
+        liveWidth = live.widthAnchor.constraint(equalToConstant: w)
+        addSubview(hideBtn)
+        addSubview(grip)
         NSLayoutConstraint.activate([
+            hideBtn.topAnchor.constraint(equalTo: live.topAnchor, constant: 6),
+            hideBtn.trailingAnchor.constraint(equalTo: live.trailingAnchor, constant: -6),
+            hideBtn.widthAnchor.constraint(equalToConstant: 30), hideBtn.heightAnchor.constraint(equalToConstant: 30),
+            grip.topAnchor.constraint(equalTo: live.topAnchor, constant: 6),
+            grip.leadingAnchor.constraint(equalTo: live.leadingAnchor, constant: 6),
+            grip.widthAnchor.constraint(equalToConstant: 30), grip.heightAnchor.constraint(equalToConstant: 30),
             stack.topAnchor.constraint(equalTo: topAnchor, constant: 10),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
             stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            live.widthAnchor.constraint(equalToConstant: Self.liveSize.width),
+            liveWidth,
             liveHeight,
         ])
         addGestureRecognizer(UIPanGestureRecognizer(target: self, action: #selector(drag(_:))))
+        addGestureRecognizer(UIPinchGestureRecognizer(target: self, action: #selector(pinch(_:))))
     }
     required init?(coder: NSCoder) { fatalError() }
 
     /// Zustand übernehmen (Modus, Screen offen?) und das Live-Bild starten oder anhalten.
     func refresh() {
         let b = Beamer.shared
-        isHidden = !b.isExternalConnected
+        isHidden = !b.isExternalConnected || minimized
         mode.selectedSegmentIndex = b.mode == .extend ? 0 : 1
         let extend = b.mode == .extend
         live.isHidden = !extend
+        grip.isHidden = !extend
         caption.isHidden = !extend
         caption.text = b.screenWebView == nil ? "Beamer · antippen öffnet den Screen" : "Beamer · antippen zum Steuern"
         screenBtn.isHidden = extend || b.screenWebView == nil
@@ -184,6 +230,42 @@ final class BeamerPiP: UIView {
         if extend, !isHidden { mirror = LiveMirror(source: b.externalController.view, target: live, fps: 8) }
         superview?.layoutIfNeeded()
         keepInside()
+    }
+
+    func setMinimized(_ on: Bool) {
+        guard on != minimized else { return }
+        minimized = on
+        UserDefaults.standard.set(on, forKey: Self.minimizedKey)
+        refresh()
+        onMinimizedChange?()
+    }
+
+    /// Neue Breite (Höhe 16:9); die Ecke unten rechts bleibt stehen.
+    private func setWidth(_ w: CGFloat, save: Bool) {
+        let nw = Self.clampWidth(w)
+        guard nw != liveWidth.constant || save else { return }
+        let br = CGPoint(x: frame.maxX, y: frame.maxY)
+        liveWidth.constant = nw
+        liveHeight.constant = nw * 9 / 16
+        let size = systemLayoutSizeFitting(UIView.layoutFittingCompressedSize)
+        frame = CGRect(x: br.x - size.width, y: br.y - size.height, width: size.width, height: size.height)
+        if save {
+            UserDefaults.standard.set(Double(nw), forKey: Self.widthKey)
+            keepInside()
+        }
+    }
+
+    @objc private func resize(_ g: UIPanGestureRecognizer) {
+        guard let sv = superview else { return }
+        let d = g.translation(in: sv)
+        g.setTranslation(.zero, in: sv)
+        // Griff oben links: nach links/oben ziehen = grösser.
+        setWidth(liveWidth.constant - (abs(d.x) > abs(d.y) ? d.x : d.y * 16 / 9), save: g.state == .ended)
+    }
+
+    @objc private func pinch(_ g: UIPinchGestureRecognizer) {
+        if g.state == .began { pinchStart = liveWidth.constant }
+        setWidth(pinchStart * g.scale, save: g.state == .ended || g.state == .cancelled)
     }
 
     @objc private func tapLive() {
@@ -209,6 +291,28 @@ final class BeamerPiP: UIView {
         f.origin.y = min(max(f.origin.y, area.minY), area.maxY - f.height)
         UIView.animate(withDuration: 0.2) { self.frame = f }
     }
+}
+
+/// Griff am rechten Rand, solange das Bild im Bild mit «–» ausgeblendet ist. Antippen holt es zurück.
+final class PiPHandle: UIButton {
+    init() {
+        super.init(frame: .zero)
+        var c = UIButton.Configuration.filled()
+        c.image = UIImage(systemName: "chevron.left")
+        c.title = "Beamer"
+        c.imagePadding = 4
+        c.baseBackgroundColor = UIColor(white: 0.1, alpha: 0.9)
+        c.baseForegroundColor = .white
+        c.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 10, bottom: 10, trailing: 14)
+        configuration = c
+        layer.cornerRadius = 14
+        layer.maskedCorners = [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+        clipsToBounds = true
+        accessibilityIdentifier = "pipHandle"
+        accessibilityLabel = "Bild im Bild wieder einblenden"
+        isHidden = true
+    }
+    required init?(coder: NSCoder) { fatalError() }
 }
 
 /// Leiste über dem Screen auf dem iPad, solange ein Beamer verbunden ist: Modus und «Zum Planer».

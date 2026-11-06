@@ -142,30 +142,47 @@ final class ShotsTests: XCTestCase {
         // Der CI-Simulator ist langsam: erst weiter, wenn die Woche wirklich dasteht.
         XCTAssertTrue(webText("KW").waitForExistence(timeout: 180))
         pause(4)
-        app.typeKey("b", modifierFlags: [.command, .shift]) // Classroom Screen auf den Beamer
-        pause(15)
+        // Screen öffnen (kommt gross aufs iPad) und zurück zum Planer: Screen läuft am Beamer.
+        tap(live)
+        XCTAssertTrue(app.buttons["screenToPlanner"].waitForExistence(timeout: 30))
+        pause(6)
+        tap(app.buttons["screenToPlanner"])
+        _ = webText("KW").waitForExistence(timeout: 60)
+        pause(8)
         pair("r5-1-woche-bild-im-bild")
         tap(live)
         XCTAssertTrue(app.buttons["screenToPlanner"].waitForExistence(timeout: 10))
         XCTAssertTrue(webText("November").waitForExistence(timeout: 120))
         pause(5)
         pair("r5-2-steuern-auf-ipad")
-        // Timer per Kürzel (der Screen ist beim Steuern verkleinert, XCUITest trifft die Web-Knöpfe dann nicht).
-        app.typeKey("t", modifierFlags: [.command, .shift])
+        tap(app.buttons["ktTimer"])          // wie ⌘⇧T
         pause(5)
         pair("r5-3-timer-live")
-        app.typeKey(XCUIKeyboardKey.rightArrow.rawValue, modifierFlags: [.command, .option])
-        pause(3)
+        tap(app.buttons["ktPhase"])          // wie ⌥⌘→
+        pause(4)
         pair("r5-4-phase-weiter")
         tap(app.buttons["ktEditToggle"])
         pause(3)
         pair("r5-5-bearbeiten-beamer-steht")
         tap(app.buttons["ktEditToggle"])
-        pause(2)
+        pause(3)
         tap(app.buttons["screenToPlanner"])
         _ = webText("KW").waitForExistence(timeout: 60)
         pause(6)
         pair("r5-6-zurueck-in-der-woche")
+        // Bild im Bild grösser ziehen (Griff oben links), dann mit «–» ausblenden und über den Griff zurückholen.
+        let grip = app.descendants(matching: .any)["pipResize"]
+        if grip.waitForExistence(timeout: 5) {
+            grip.press(forDuration: 0.3, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.3)))
+            pause(3)
+            pair("r5-7-bild-im-bild-gross")
+        }
+        tap(app.buttons["pipHide"])
+        pause(2)
+        pair("r5-8-ausgeblendet-griff")
+        tap(app.buttons["pipHandle"])
+        pause(3)
+        pair("r5-9-wieder-da")
     }
 
     private func webText(_ t: String) -> XCUIElement {

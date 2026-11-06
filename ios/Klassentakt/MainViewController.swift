@@ -26,7 +26,8 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     /// Streifen hinter der Statusleiste (Uhr, Akku): nimmt die Farbe der Kopfzeile der Seite an.
     private let topBar = UIView()
     var pendingFiles: [(OutFile, String)] = []
-    private lazy var pip = BeamerPiP(host: self)
+    lazy var pip = BeamerPiP(host: self)
+    private let pipHandle = PiPHandle()
     lazy var downloads = DownloadHandler(host: self)
     private var topIsDark = false
     private var lastDisplay: [ObjectIdentifier: String] = [:]
@@ -103,6 +104,14 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         installTestBand()
         pip.isHidden = true
         view.addSubview(pip)
+        pip.onMinimizedChange = { [weak self] in self?.refreshPiP() }
+        pipHandle.translatesAutoresizingMaskIntoConstraints = false
+        pipHandle.addAction(UIAction { [weak self] _ in self?.pip.setMinimized(false) }, for: .touchUpInside)
+        view.addSubview(pipHandle)
+        NSLayoutConstraint.activate([
+            pipHandle.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            pipHandle.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -120),
+        ])
         view.bringSubviewToFront(toastLabel)
         webView.load(URLRequest(url: TestMode.demoClass ? DemoScheme.start : Self.startURL))
     }
@@ -212,8 +221,10 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
     func refreshPiP() {
         guard isViewLoaded else { return }
         view.bringSubviewToFront(pip)
+        view.bringSubviewToFront(pipHandle)
         view.bringSubviewToFront(toastLabel)
         pip.refresh()
+        pipHandle.isHidden = !(Beamer.shared.isExternalConnected && pip.minimized)
     }
 
     override func viewDidLayoutSubviews() {

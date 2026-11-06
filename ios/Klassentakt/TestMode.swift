@@ -235,7 +235,7 @@ enum TestButtons {
     static func install(in scene: UIWindowScene, host: MainViewController) {
         let w = UIWindow(windowScene: scene)
         w.windowLevel = .alert + 2
-        w.frame = CGRect(x: 0, y: scene.coordinateSpace.bounds.height - 30, width: 90, height: 30)
+        w.frame = CGRect(x: 0, y: scene.coordinateSpace.bounds.height - 30, width: 150, height: 30)
         let root = UIViewController()
         root.view.backgroundColor = .clear
         w.rootViewController = root
@@ -250,6 +250,8 @@ enum TestButtons {
         }
         add("ktPreviewHide", x: 0) { BeamerPreviewWindow.current?.isHidden = true }
         add("ktPreviewShow", x: 30) { BeamerPreviewWindow.current?.isHidden = false }
+        add("ktTimer", x: 90) { [weak host] in host?.run(.timerToggle) }   // wie ⌘⇧T
+        add("ktPhase", x: 120) { [weak host] in host?.run(.phaseNext) }    // wie ⌥⌘→
         add("ktEditToggle", x: 60) { [weak host] in
             guard let host = host, let screen = Beamer.shared.screenWebView else { return }
             editOpen.toggle()

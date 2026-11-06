@@ -82,17 +82,36 @@ final class Beamer {
     }
 
     /// Bearbeiten-Popup der Web-App auf/zu. Spätestens nach 15 Minuten taut der Beamer von selbst auf.
+    /// Zusätzlich prüft die App jede Sekunde, ob das Popup im Screen noch offen ist: Vergisst die Web-App
+    /// `editing {open:false}` (z. B. nach «Löschen»), steht der Beamer so höchstens 2 s.
     func setEditing(_ open: Bool) {
         guard open != isEditing else { return }
         isEditing = open
         editingRelease?.cancel()
+        editingMisses = 0
         if open {
             let w = DispatchWorkItem { [weak self] in self?.setEditing(false) }
             editingRelease = w
             DispatchQueue.main.asyncAfter(deadline: .now() + 15 * 60, execute: w)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.checkEditing() }
         }
         externalController.freeze(open)
         mirror?.paused = open
+    }
+
+    /// Selektor für ein offenes Bearbeiten-Popup im Screen (Web-App: Textfeld `#csEdTx`).
+    static let editingSelector = "#csEdTx, #ktTestPop"
+    private var editingMisses = 0
+
+    private func checkEditing() {
+        guard isEditing else { return }
+        guard let wv = screenWebView else { setEditing(false); return }
+        wv.evaluateJavaScript("!!document.querySelector('\(Self.editingSelector)')") { [weak self] r, _ in
+            guard let self = self, self.isEditing else { return }
+            self.editingMisses = (r as? Bool) == true ? 0 : self.editingMisses + 1
+            if self.editingMisses >= 2 { self.setEditing(false); return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.checkEditing() }
+        }
     }
 
     /// Erweitern ↔ Spiegeln. Beim Spiegeln kommt ein offener Screen aufs iPad (dann sieht man ihn auch vorne).

@@ -128,6 +128,11 @@ extension MainViewController {
         case .camera:
             openDocCam()
         case .screenToggle:
+            // Bild im Bild ausgeblendet: ⌘⇧B holt es zuerst zurück (und öffnet den Screen, falls er zu ist).
+            if Beamer.shared.isExternalConnected && pip.minimized {
+                pip.setMinimized(false)
+                if screenOpen { return }
+            }
             if shell.emit(c.rawValue, ["open": screenOpen]) { return }
             if let wv = Beamer.shared.screenWebView {
                 // Über window.close schliessen, damit die Web-App es mitbekommt; sonst hart.

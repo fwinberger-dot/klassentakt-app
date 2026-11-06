@@ -56,4 +56,10 @@ final class BeamerTests: XCTestCase {
         XCTAssertTrue(c.shown)
         XCTAssertEqual(c.how, "capture")
     }
+
+    func testPiPWidthClamped() {
+        XCTAssertEqual(BeamerPiP.clampWidth(50), 200)
+        XCTAssertEqual(BeamerPiP.clampWidth(5000), 720)
+        XCTAssertEqual(BeamerPiP.clampWidth(400.4), 400)
+    }
 }
