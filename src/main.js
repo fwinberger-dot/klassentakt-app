@@ -10,7 +10,8 @@ const updater = process.mas ? null : require('./updater');
 const { createInk, binPath } = require('./ink');
 const ink = createInk(binPath(app));
 
-const START_URL = 'https://klassentakt.ch/';
+const server = require('./server');
+const START_URL = server.startUrl(); // klassentakt.ch, zum Testen auch staging (siehe server.js)
 const APP_HOSTS = ['klassentakt.ch'];
 // Login-Anbieter dürfen im App-Fenster laufen. Google NICHT: Google blockiert
 // Logins in App-Fenstern («Browser nicht sicher»), darum läuft Google im Systembrowser.
@@ -40,7 +41,7 @@ function externalLoginUrl(u) {
 // Kann klassentakt.ch den Login aus dem Browser schon an die App zurückgeben?
 // Solange /auth/app/redeem 404 liefert (Server-Teil fehlt), zeigen wir eine klare Info statt eines toten Browser-Logins.
 async function appLoginSupported() {
-  try { const r = await net.fetch('https://klassentakt.ch/auth/app/redeem?probe=1', { cache: 'no-store', redirect: 'manual' }); return r.status !== 404; }
+  try { const r = await net.fetch(START_URL + 'auth/app/redeem?probe=1', { cache: 'no-store', redirect: 'manual' }); return r.status !== 404; }
   catch { return false; }
 }
 let googleBusy = false;
@@ -65,7 +66,7 @@ function handleDeepLink(raw) {
     if (!/^[A-Za-z0-9_-]{16,200}$/.test(code)) return;
     let next = u.searchParams.get('next') || '/';
     if (!next.startsWith('/') || next.startsWith('//')) next = '/';
-    const target = `https://klassentakt.ch/auth/app/redeem?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`;
+    const target = `${START_URL}auth/app/redeem?code=${encodeURIComponent(code)}&next=${encodeURIComponent(next)}`;
     if (!win || win.isDestroyed()) createWindow(target); else win.loadURL(target);
     if (win.isMinimized()) win.restore();
     win.show(); win.focus(); app.focus({ steal: true });
@@ -128,7 +129,7 @@ function wireNavigation(wc) {
   wc.setWindowOpenHandler(({ url, frameName }) => {
     const ext = externalLoginUrl(url);
     if (ext) { startExternalLogin(ext, wc); return { action: 'deny' }; }
-    if (isGoogleAuth(url)) { startExternalLogin('https://klassentakt.ch/auth/google/start?next=%2F&app=1', wc); return { action: 'deny' }; }
+    if (isGoogleAuth(url)) { startExternalLogin(START_URL + 'auth/google/start?next=%2F&app=1', wc); return { action: 'deny' }; }
     const blank = !url || url === 'about:blank';
     // Classroom Screen: eigenes Fenster, später auf den Beamer (siehe did-create-window)
     if ((isApp(url) || blank) && beamer.isScreenRequest(url, frameName)) {
@@ -157,7 +158,7 @@ function wireNavigation(wc) {
     if (ext) { e.preventDefault(); startExternalLogin(ext, wc); return; }
     if (isGoogleAuth(url)) { // Umleitung zu Google ohne unseren Start-Link: Login neu im Browser starten
       e.preventDefault();
-      startExternalLogin('https://klassentakt.ch/auth/google/start?next=%2F&app=1', wc);
+      startExternalLogin(START_URL + 'auth/google/start?next=%2F&app=1', wc);
       return;
     }
     if (isApp(url) && /[?&]im-browser=1/.test(url)) { e.preventDefault(); shell.openExternal(START_URL); return; }
@@ -318,6 +319,11 @@ app.whenReady().then(() => {
     setInterval(() => updater.check(false), 6 * 60 * 60 * 1000); // App läuft oft tagelang
   }
   app.on('will-quit', () => ink.stop());
+  // staging fragt nach Basic-Auth: Zugang nur aus KT_BASIC und nur für den Testserver
+  app.on('login', (e, _wc, _details, auth, cb) => {
+    const z = !auth.isProxy && server.basicFor(auth.host);
+    if (z) { e.preventDefault(); cb(z.username, z.password); }
+  });
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
