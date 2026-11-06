@@ -150,10 +150,9 @@ final class ShotsTests: XCTestCase {
         XCTAssertTrue(webText("November").waitForExistence(timeout: 120))
         pause(5)
         pair("r5-2-steuern-auf-ipad")
-        // Im Screen auf dem iPad den Timer antippen (echter Tipp), sonst per Kürzel.
-        let timer = app.webViews.buttons.matching(NSPredicate(format: "label CONTAINS 'Timer'")).firstMatch
-        if timer.waitForExistence(timeout: 5) { timer.tap() } else { app.typeKey("t", modifierFlags: [.command, .shift]) }
-        pause(4)
+        // Timer per Kürzel (der Screen ist beim Steuern verkleinert, XCUITest trifft die Web-Knöpfe dann nicht).
+        app.typeKey("t", modifierFlags: [.command, .shift])
+        pause(5)
         pair("r5-3-timer-live")
         app.typeKey(XCUIKeyboardKey.rightArrow.rawValue, modifierFlags: [.command, .option])
         pause(3)
