@@ -139,13 +139,16 @@ final class ShotsTests: XCTestCase {
         launch(["-ktBeamerPreview", "-ktDemoKlasse"])
         let live = app.descendants(matching: .any)["pipLive"]
         XCTAssertTrue(live.waitForExistence(timeout: 60))
+        // Der CI-Simulator ist langsam: erst weiter, wenn die Woche wirklich dasteht.
+        XCTAssertTrue(webText("KW").waitForExistence(timeout: 180))
         pause(4)
         app.typeKey("b", modifierFlags: [.command, .shift]) // Classroom Screen auf den Beamer
-        pause(8)
+        pause(15)
         pair("r5-1-woche-bild-im-bild")
         tap(live)
-        pause(3)
         XCTAssertTrue(app.buttons["screenToPlanner"].waitForExistence(timeout: 10))
+        XCTAssertTrue(webText("November").waitForExistence(timeout: 120))
+        pause(5)
         pair("r5-2-steuern-auf-ipad")
         // Im Screen auf dem iPad den Timer antippen (echter Tipp), sonst per Kürzel.
         let timer = app.webViews.buttons.matching(NSPredicate(format: "label CONTAINS 'Timer'")).firstMatch
@@ -161,8 +164,13 @@ final class ShotsTests: XCTestCase {
         tap(app.buttons["ktEditToggle"])
         pause(2)
         tap(app.buttons["screenToPlanner"])
-        pause(4)
+        _ = webText("KW").waitForExistence(timeout: 60)
+        pause(6)
         pair("r5-6-zurueck-in-der-woche")
+    }
+
+    private func webText(_ t: String) -> XCUIElement {
+        app.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", t)).firstMatch
     }
 
     private func pair(_ name: String) {
