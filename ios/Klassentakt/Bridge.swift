@@ -94,7 +94,9 @@ final class Shell: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ c: WKUserContentController, didReceive m: WKScriptMessage) {
         // Nur die Hauptseite von klassentakt.ch, keine eingebetteten Fremd-Inhalte (YouTube, …).
-        guard m.frameInfo.isMainFrame, Self.trusted(m.frameInfo.securityOrigin.host), let msg = Self.parse(m.body) else { return }
+        let o = m.frameInfo.securityOrigin
+        let demo = TestMode.demoClass && o.protocol == DemoScheme.scheme
+        guard m.frameInfo.isMainFrame, Self.trusted(o.host) || demo, let msg = Self.parse(m.body) else { return }
         let wv = m.webView
         DispatchQueue.main.async {
             switch msg.kind {

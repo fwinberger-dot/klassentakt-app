@@ -136,16 +136,20 @@ final class ShotsTests: XCTestCase {
     // Runde 5 – Bild im Bild im Unterricht: Woche im Planer, Screen steuern, zurück. Erfundene Klasse (-ktDemoKlasse).
     // Pro Schritt zwei Bilder: «-beamer» mit Vorschau (oben links ausgeschnitten = Beamer), «-ipad» ohne Vorschau.
     func test6Runde5() {
-        launch(["-ktBeamerPreview", "-ktDemoKlasse", "-ktRun", "screen-toggle"])
+        launch(["-ktBeamerPreview", "-ktDemoKlasse"])
         let live = app.descendants(matching: .any)["pipLive"]
         XCTAssertTrue(live.waitForExistence(timeout: 60))
-        pause(6)
+        pause(4)
+        app.typeKey("b", modifierFlags: [.command, .shift]) // Classroom Screen auf den Beamer
+        pause(8)
         pair("r5-1-woche-bild-im-bild")
         tap(live)
         pause(3)
         XCTAssertTrue(app.buttons["screenToPlanner"].waitForExistence(timeout: 10))
         pair("r5-2-steuern-auf-ipad")
-        app.typeKey("t", modifierFlags: [.command, .shift])
+        // Im Screen auf dem iPad den Timer antippen (echter Tipp), sonst per Kürzel.
+        let timer = app.webViews.buttons.matching(NSPredicate(format: "label CONTAINS 'Timer'")).firstMatch
+        if timer.waitForExistence(timeout: 5) { timer.tap() } else { app.typeKey("t", modifierFlags: [.command, .shift]) }
         pause(4)
         pair("r5-3-timer-live")
         app.typeKey(XCUIKeyboardKey.rightArrow.rawValue, modifierFlags: [.command, .option])
@@ -162,12 +166,12 @@ final class ShotsTests: XCTestCase {
     }
 
     private func pair(_ name: String) {
+        tap(app.buttons["ktPreviewShow"])
         shot(name + "-beamer")
-        tap(app.buttons["ktPreviewToggle"])
+        tap(app.buttons["ktPreviewHide"])
         pause(0.8)
         shot(name + "-ipad")
-        tap(app.buttons["ktPreviewToggle"])
-        pause(0.8)
+        tap(app.buttons["ktPreviewShow"])
     }
 
     // 5 – Teilen-Menü und Dateien

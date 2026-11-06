@@ -235,7 +235,7 @@ enum TestButtons {
     static func install(in scene: UIWindowScene, host: MainViewController) {
         let w = UIWindow(windowScene: scene)
         w.windowLevel = .alert + 2
-        w.frame = CGRect(x: 0, y: scene.coordinateSpace.bounds.height - 30, width: 60, height: 30)
+        w.frame = CGRect(x: 0, y: scene.coordinateSpace.bounds.height - 30, width: 90, height: 30)
         let root = UIViewController()
         root.view.backgroundColor = .clear
         w.rootViewController = root
@@ -248,8 +248,9 @@ enum TestButtons {
             b.addAction(UIAction { _ in act() }, for: .touchUpInside)
             root.view.addSubview(b)
         }
-        add("ktPreviewToggle", x: 0) { BeamerPreviewWindow.current?.isHidden.toggle() }
-        add("ktEditToggle", x: 30) { [weak host] in
+        add("ktPreviewHide", x: 0) { BeamerPreviewWindow.current?.isHidden = true }
+        add("ktPreviewShow", x: 30) { BeamerPreviewWindow.current?.isHidden = false }
+        add("ktEditToggle", x: 60) { [weak host] in
             guard let host = host, let screen = Beamer.shared.screenWebView else { return }
             editOpen.toggle()
             host.testEditPopup(open: editOpen, in: screen, text: "Stromkreis bauen, Schaltplan zeichnen")
@@ -285,6 +286,9 @@ final class DemoScheme: NSObject, WKURLSchemeHandler {
         guard let b = rest.range(of: "P._save && P._save();") else { return page }
         var seed = String(page[a.lowerBound..<b.upperBound])
         for (from, to) in names { seed = seed.replacingOccurrences(of: from, with: to) }
+        // Heute in jeder Lektion ein Ablauf mit Schritten (der Screen zeigt die aktuelle Lektion).
+        seed = seed.replacingOccurrences(of: "put(K, \"evt:p2\"", with:
+            "[\"nmg3\",\"mi2\",\"nmg9\",\"eng\",\"mi1\",\"nmg7\",\"nmg5\"].forEach((l, i) => E(iso(new Date()), i + 1, l));\n  put(K, \"evt:p2\"")
         return String(page[..<a.lowerBound]) + seed + String(page[b.upperBound...])
     }
 
