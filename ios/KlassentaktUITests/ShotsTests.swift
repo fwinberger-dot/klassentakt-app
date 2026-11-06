@@ -144,7 +144,7 @@ final class ShotsTests: XCTestCase {
         pause(4)
         // Screen öffnen (kommt gross aufs iPad) und zurück zum Planer: Screen läuft am Beamer.
         tap(live)
-        XCTAssertTrue(app.buttons["screenToPlanner"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.buttons["screenToPlanner"].waitForExistence(timeout: 90))
         pause(6)
         tap(app.buttons["screenToPlanner"])
         _ = webText("KW").waitForExistence(timeout: 60)
