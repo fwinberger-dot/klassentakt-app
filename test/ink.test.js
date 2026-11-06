@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { validate, clean, createInk, LIMITS } = require('../src/ink');
+const { validate, clean, differs, createInk, LIMITS } = require('../src/ink');
 const { strokesFor } = require('./fixtures/ink-strokes');
 
 const job = (o = {}) => ({ id: 'a1', lang: 'de-CH', width: 800, height: 120, strokes: strokesFor('HEFT'), png: '', ...o });
@@ -36,6 +36,16 @@ test('Antwort wird auf den Vertrag gekürzt', () => {
     { text: 'Heft', alternatives: ['Hef', 'Hefte', 'Heff'], confidence: 1 });
   assert.deepStrictEqual(clean({ error: 'keine Striche' }), { error: 'keine Striche' });
   assert.deepStrictEqual(clean('x'), { error: 'Erkennung fehlgeschlagen' });
+});
+
+test('stark abweichende Vorschläge senken die Sicherheit', () => {
+  assert.strictEqual(differs('HEFT HOLEN', 'HEFTHOLEN'), false);
+  assert.strictEqual(differs('Lies den Text auf Seite 12', 'Les der Text alf Seite 12'), true);
+  // nur Leerzeichen bzw. ein Buchstabe anders → bleibt sicher
+  assert.strictEqual(clean({ text: 'HEFT HOLEN', alternatives: ['HEFTHOLEN', 'HET HOLEN'], confidence: 1 }).confidence, 1);
+  // ganz anderer Vorschlag → unsicher (< 0.7)
+  assert.strictEqual(clean({ text: 'Hef hotor und Datum schreiben', alternatives: ['Heft holen und Datum schreiben'], confidence: 1 }).confidence, 0.5);
+  assert.strictEqual(clean({ text: 'Lies', alternatives: ['Lisa', 'Lesen'], confidence: 0.3 }).confidence, 0.3, 'nie erhöhen');
 });
 
 test('ohne kt-ink: Fehler statt Hängen, Feature fehlt', () => {

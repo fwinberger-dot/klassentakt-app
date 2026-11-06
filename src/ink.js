@@ -38,6 +38,22 @@ function validate(p) {
   return { id, width, height, strokes, png };
 }
 
+const norm = (t) => t.toLowerCase().replace(/\s+/g, '');
+function distance(a, b) {
+  let d = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const n = [i];
+    for (let j = 1; j <= b.length; j++) n[j] = Math.min(d[j] + 1, n[j - 1] + 1, d[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    d = n;
+  }
+  return d[b.length];
+}
+/** Weicht der Vorschlag stark ab? Ab 3 verschiedenen Zeichen oder einem Viertel (ohne Leerzeichen, Gross/klein). */
+const differs = (text, alt) => { const a = norm(text), b = norm(alt), d = distance(a, b); return d >= 3 || d / Math.max(a.length, b.length, 1) > 0.25; };
+// Vision meldet oft 1.0, auch wenn es falsch liegt. Weicht ein Vorschlag stark ab, ist es unsicher
+// (die Web-App markiert unter 0.7 «Unsicher erkannt»).
+const UNSURE_CONF = 0.5;
+
 /** Antwort von kt-ink in die Form des Vertrags bringen. */
 function clean(r) {
   if (!r || typeof r !== 'object') return { error: 'Erkennung fehlgeschlagen' };
@@ -47,6 +63,7 @@ function clean(r) {
     .filter((a) => typeof a === 'string' && a && a !== text).slice(0, 3).map((a) => a.slice(0, LIMITS.text));
   const out = { text, alternatives };
   if (num(r.confidence)) out.confidence = Math.min(1, Math.max(0, r.confidence));
+  if (text && alternatives.some((a) => differs(text, a))) out.confidence = Math.min(out.confidence ?? 1, UNSURE_CONF);
   return out;
 }
 
@@ -112,4 +129,4 @@ function createInk(bin) {
   return { available, recognize, stop };
 }
 
-module.exports = { validate, clean, binPath, createInk, LIMITS };
+module.exports = { validate, clean, differs, binPath, createInk, LIMITS };
