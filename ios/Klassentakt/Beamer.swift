@@ -2,10 +2,9 @@ import UIKit
 import WebKit
 
 /// Classroom Screen auf dem Beamer:
-/// - Beamer angeschlossen (HDMI/USB-C-Adapter oder AirPlay), Modus während der Nutzung umschaltbar:
-///   - erweitern: Screen läuft am Beamer, das iPad zeigt den Planer mit Bild im Bild.
-///     «Steuern»: derselbe Screen kommt gross aufs iPad (in Beamer-Grösse, verkleinert), der Beamer zeigt sein Live-Bild.
-///   - spiegeln: Beamer zeigt das iPad-Bild.
+/// - Beamer angeschlossen (HDMI/USB-C-Adapter oder AirPlay): immer erweitert. Der Beamer zeigt den Screen,
+///   das iPad den Planer mit Bild im Bild; der Planer erscheint nie vorne.
+///   «Steuern»: derselbe Screen kommt gross aufs iPad (in Beamer-Grösse, verkleinert), der Beamer zeigt sein Live-Bild.
 ///   Es gibt immer nur einen Screen (ein WKWebView, ein Zustand) – kopiert wird nur das Bild.
 /// - Kein Beamer: Screen öffnet sich auf dem iPad im Vollbild.
 /// - Solange der Screen offen ist, geht das iPad nicht in den Ruhezustand.
@@ -20,11 +19,9 @@ final class Beamer {
     weak var host: MainViewController?
     private var modal: ScreenViewController?
 
-    private(set) var mode: BeamerMode = .extend
-    /// Screen gross auf dem iPad (erweitern: «Steuern»; spiegeln: Screen statt Planer).
+    /// Screen gross auf dem iPad («Steuern»).
     private(set) var screenOnIPad = false
     private var mirror: LiveMirror?
-    private var wasMirroring = false
     /// Bearbeiten-Popup offen (`editing`): Beamer zeigt das letzte Bild weiter.
     private(set) var isEditing = false
     private var editingRelease: DispatchWorkItem?
@@ -36,15 +33,14 @@ final class Beamer {
 
     var stateForWeb: [String: Any] {
         ["open": screenWebView != nil, "extern": isExternalConnected, "camera": cameraView != nil,
-         "mode": mode.rawValue, "steuern": isExternalConnected && screenOnIPad && screenWebView != nil]
+         "mode": "erweitern", "steuern": isExternalConnected && screenOnIPad && screenWebView != nil]
     }
 
     /// Ist der Inhalt eines WebViews gerade ausserhalb des iPads zu sehen? (`display` an die Web-App, z. B. für
-    /// Schritte «nur für mich»). Lieber einmal zu oft `true`: beim Spiegeln zählen Planer und Screen.
-    static func display(isScreen: Bool, connected: Bool, mode: BeamerMode, captured: Bool) -> (shown: Bool, how: String) {
+    /// Schritte «nur für mich»). Der Planer ist nur bei Aufnahme/AirPlay-Synchronisierung sichtbar.
+    static func display(isScreen: Bool, connected: Bool, captured: Bool) -> (shown: Bool, how: String) {
         if captured { return (true, "capture") }
         guard connected else { return (false, "none") }
-        if mode == .mirror { return (true, "mirror") }
         return isScreen ? (true, "beamer") : (false, "none")
     }
 
@@ -61,9 +57,9 @@ final class Beamer {
     func show(_ webView: WKWebView) {
         close()
         screenWebView = webView
-        screenOnIPad = mode == .mirror
+        screenOnIPad = false
         place()
-        if isExternalConnected && mode == .extend { host?.toast("Classroom Screen läuft auf dem Beamer") }
+        if isExternalConnected { host?.toast("Classroom Screen läuft auf dem Beamer") }
         UIApplication.shared.isIdleTimerDisabled = true
         host?.beamerChanged()
     }
@@ -114,16 +110,6 @@ final class Beamer {
         }
     }
 
-    /// Erweitern ↔ Spiegeln. Beim Spiegeln kommt ein offener Screen aufs iPad (dann sieht man ihn auch vorne).
-    func setMode(_ m: BeamerMode) {
-        guard m != mode else { return }
-        mode = m
-        screenOnIPad = m == .mirror && screenWebView != nil
-        place()
-        host?.beamerChanged()
-        host?.toast(m == .extend ? "Beamer: Erweitern" : "Beamer: Spiegeln – zeigt das iPad")
-    }
-
     /// Screen gross aufs iPad (true) oder zurück zum Planer (false). Der Beamer läuft weiter.
     func control(_ on: Bool) {
         guard screenWebView != nil || !on else { return }
@@ -135,7 +121,7 @@ final class Beamer {
     func externalConnected(_ connected: Bool) {
         let wasConnected = isExternalConnected
         isExternalConnected = connected
-        if connected != wasConnected { screenOnIPad = !connected || mode == .mirror }
+        if connected != wasConnected { screenOnIPad = !connected }
         if connected && !wasConnected {
             // Erst `display` an die Web-App, dann nach kurzer Pause das Bild an den Beamer (bis dahin Platzhalter).
             host?.updateDisplay()
@@ -162,16 +148,7 @@ final class Beamer {
         mirror?.stop()
         mirror = nil
         defer {
-            // Neu ins Spiegeln: Live-Bild erst nach `display` an die Web-App (beamerChanged nach place) starten.
-            let fresh = mirror != nil && mode == .mirror && !wasMirroring
-            wasMirroring = mirror != nil && mode == .mirror
-            mirror?.paused = fresh || isEditing
-            if fresh {
-                DispatchQueue.main.asyncAfter(deadline: .now() + Self.revealDelay) { [weak self] in
-                    guard let self = self else { return }
-                    self.mirror?.paused = self.isEditing
-                }
-            }
+            mirror?.paused = isEditing
             externalController.showMirror(mirror != nil)
             modal?.refresh()
             host?.refreshPiP()
@@ -182,26 +159,13 @@ final class Beamer {
             if let wv = wv { presentModal(wv, fixed: nil) } else { dismissModal() }
             return
         }
-        switch mode {
-        case .extend:
-            if let wv = wv, screenOnIPad {
-                // Gleiche Grösse wie am Beamer → nichts bricht um, der Beamer zeigt 1:1 dasselbe.
-                presentModal(wv, fixed: externalController.view.bounds.size)
-                mirror = LiveMirror(source: wv, target: externalController.mirrorHost, fps: 20)
-            } else {
-                dismissModal()
-                externalController.setScreen(wv)
-            }
-        case .mirror:
-            if let wv = wv, screenOnIPad {
-                presentModal(wv, fixed: nil)
-            } else {
-                dismissModal()
-                externalController.setScreen(wv) // läuft unsichtbar unter dem Spiegelbild weiter
-            }
-            // Quelle: was gerade vorne auf dem iPad ist (Screen im Vollbild oder der Planer).
-            // Der Schnappschuss des ganzen Fensters erfasst ein Vollbild-Modal nicht zuverlässig.
-            if let src = modal?.view ?? host?.view.window { mirror = LiveMirror(source: src, target: externalController.mirrorHost, fps: 15) }
+        if let wv = wv, screenOnIPad {
+            // Gleiche Grösse wie am Beamer → nichts bricht um, der Beamer zeigt 1:1 dasselbe.
+            presentModal(wv, fixed: externalController.view.bounds.size)
+            mirror = LiveMirror(source: wv, target: externalController.mirrorHost, fps: 20)
+        } else {
+            dismissModal()
+            externalController.setScreen(wv)
         }
     }
 
@@ -226,7 +190,7 @@ final class Beamer {
 final class BeamerViewController: UIViewController {
     private let placeholder = UILabel()
     private weak var camera: UIView?
-    /// Live-Bild (Steuern auf dem iPad oder Spiegeln). Über dem Screen, unter der Kamera.
+    /// Live-Bild beim Steuern auf dem iPad. Über dem Screen, unter der Kamera.
     let mirrorHost = UIView()
     /// Eingefrorenes Bild über allem, solange `editing` offen ist.
     private var frozen: UIView?

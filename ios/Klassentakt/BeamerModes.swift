@@ -1,24 +1,5 @@
 import UIKit
 
-/// Beamer-Modus, während der Nutzung umschaltbar (kein Dialog beim Verbinden).
-/// - erweitern: Beamer zeigt den Classroom Screen, das iPad den Planer mit Bild im Bild.
-/// - spiegeln: Beamer zeigt das iPad-Bild 1:1. Das echte Spiegeln von iPadOS lässt sich zur Laufzeit
-///   nicht zurück auf «erweitern» schalten, darum spiegelt die App selbst (Live-Bild ihres Fensters).
-enum BeamerMode: String {
-    case extend = "erweitern"
-    case mirror = "spiegeln"
-
-    var title: String { self == .extend ? "Erweitern" : "Spiegeln" }
-
-    static func control(_ current: BeamerMode, id: String, onChange: @escaping (BeamerMode) -> Void) -> UISegmentedControl {
-        let s = UISegmentedControl(items: [BeamerMode.extend.title, BeamerMode.mirror.title])
-        s.selectedSegmentIndex = current == .extend ? 0 : 1
-        s.accessibilityIdentifier = id
-        s.addAction(UIAction { [weak s] _ in onChange(s?.selectedSegmentIndex == 1 ? .mirror : .extend) }, for: .valueChanged)
-        return s
-    }
-}
-
 /// Live-Bild einer View in einer anderen (Beamer ↔ iPad). Ein Screen, ein Zustand – nur das Bild wird kopiert.
 /// snapshotView(afterScreenUpdates: false) holt das fertige Bild vom Render-Server, auch von WKWebView.
 final class LiveMirror {
@@ -101,7 +82,7 @@ final class LiveMirror {
 
 /// Bild im Bild auf dem iPad (Planer): zeigt live, was am Beamer läuft. Antippen = Screen gross zum Steuern.
 /// Verschiebbar, Grösse frei (zwei Finger oder Griff oben links, wird gemerkt), «–» blendet es aus
-/// (zurück über den Griff am rechten Rand oder ⌘⇧B). Beim Spiegeln nur noch der Schalter.
+/// (zurück über den Griff am rechten Rand oder ⌘⇧B). Der Beamer zeigt immer den Screen, nie den Planer.
 final class BeamerPiP: UIView {
     private let live = UIView()
     private let hideBtn = UIButton(type: .system)
@@ -120,8 +101,6 @@ final class BeamerPiP: UIView {
         return w > 0 ? clampWidth(w) : liveSize.width
     }
     private let caption = UILabel()
-    private var mode: UISegmentedControl!
-    private let screenBtn = UIButton(type: .system)
     private var mirror: LiveMirror?
     private var liveHeight: NSLayoutConstraint!
     weak var host: MainViewController?
@@ -169,23 +148,7 @@ final class BeamerPiP: UIView {
         caption.textColor = UIColor(white: 1, alpha: 0.8)
         caption.font = .systemFont(ofSize: 12, weight: .semibold)
 
-        mode = BeamerMode.control(Beamer.shared.mode, id: "pipMode") { Beamer.shared.setMode($0) }
-        mode.selectedSegmentTintColor = .white
-        mode.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .normal)
-        mode.setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
-
-        var c = UIButton.Configuration.filled()
-        c.title = "Screen"
-        c.cornerStyle = .capsule
-        c.baseBackgroundColor = .white
-        c.baseForegroundColor = .black
-        screenBtn.configuration = c
-        screenBtn.accessibilityIdentifier = "pipScreen"
-        screenBtn.addAction(UIAction { _ in Beamer.shared.control(true) }, for: .touchUpInside)
-
-        let row = UIStackView(arrangedSubviews: [mode, screenBtn])
-        row.spacing = 8
-        let stack = UIStackView(arrangedSubviews: [live, caption, row])
+        let stack = UIStackView(arrangedSubviews: [live, caption])
         stack.axis = .vertical
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -214,20 +177,14 @@ final class BeamerPiP: UIView {
     }
     required init?(coder: NSCoder) { fatalError() }
 
-    /// Zustand übernehmen (Modus, Screen offen?) und das Live-Bild starten oder anhalten.
+    /// Zustand übernehmen (Screen offen?) und das Live-Bild starten oder anhalten.
     func refresh() {
         let b = Beamer.shared
         isHidden = !b.isExternalConnected || minimized
-        mode.selectedSegmentIndex = b.mode == .extend ? 0 : 1
-        let extend = b.mode == .extend
-        live.isHidden = !extend
-        grip.isHidden = !extend
-        caption.isHidden = !extend
         caption.text = b.screenWebView == nil ? "Beamer · antippen öffnet den Screen" : "Beamer · antippen zum Steuern"
-        screenBtn.isHidden = extend || b.screenWebView == nil
         mirror?.stop()
         mirror = nil
-        if extend, !isHidden { mirror = LiveMirror(source: b.externalController.view, target: live, fps: 8) }
+        if !isHidden { mirror = LiveMirror(source: b.externalController.view, target: live, fps: 8) }
         superview?.layoutIfNeeded()
         keepInside()
     }
@@ -315,19 +272,14 @@ final class PiPHandle: UIButton {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-/// Leiste über dem Screen auf dem iPad, solange ein Beamer verbunden ist: Modus und «Zum Planer».
+/// Leiste über dem Screen auf dem iPad, solange ein Beamer verbunden ist: «Zum Planer».
 final class ScreenBar: UIView {
-    private var mode: UISegmentedControl!
 
     init() {
         super.init(frame: .zero)
         accessibilityIdentifier = "screenBar"
         backgroundColor = UIColor(white: 0.1, alpha: 0.85)
         layer.cornerRadius = 20
-        mode = BeamerMode.control(Beamer.shared.mode, id: "screenMode") { Beamer.shared.setMode($0) }
-        mode.selectedSegmentTintColor = .white
-        mode.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .normal)
-        mode.setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
         var c = UIButton.Configuration.filled()
         c.title = "Zum Planer"
         c.image = UIImage(systemName: "rectangle.on.rectangle")
@@ -338,7 +290,7 @@ final class ScreenBar: UIView {
         let back = UIButton(configuration: c)
         back.accessibilityIdentifier = "screenToPlanner"
         back.addAction(UIAction { _ in Beamer.shared.control(false) }, for: .touchUpInside)
-        let row = UIStackView(arrangedSubviews: [mode, back])
+        let row = UIStackView(arrangedSubviews: [back])
         row.spacing = 10
         row.alignment = .center
         row.translatesAutoresizingMaskIntoConstraints = false
@@ -354,6 +306,5 @@ final class ScreenBar: UIView {
 
     func refresh() {
         isHidden = !Beamer.shared.isExternalConnected
-        mode.selectedSegmentIndex = Beamer.shared.mode == .extend ? 0 : 1
     }
 }

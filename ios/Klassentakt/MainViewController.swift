@@ -246,7 +246,7 @@ final class MainViewController: UIViewController, WKNavigationDelegate, WKUIDele
         if #available(iOS 17.0, *), let sc = view.window?.windowScene { captured = captured || sc.traitCollection.sceneCaptureState == .active }
         for (wv, isScreen) in [(webView as WKWebView?, false), (b.screenWebView, true)] {
             guard let wv = wv else { continue }
-            let d = Beamer.display(isScreen: isScreen, connected: b.isExternalConnected, mode: b.mode, captured: captured)
+            let d = Beamer.display(isScreen: isScreen, connected: b.isExternalConnected, captured: captured)
             let key = "\(d.shown)|\(d.how)", id = ObjectIdentifier(wv)
             guard force || wv === answer || lastDisplay[id] != key else { continue }
             if shell.emit("display", ["shown": d.shown, "how": d.how], to: wv, always: wv === answer) { lastDisplay[id] = key }

@@ -80,7 +80,7 @@ Was die App tut:
 
 | Richtung | Name | Nutzlast |
 |---|---|---|
-| App → Web | `beamer` | `{open, extern, camera, mode: 'erweitern'\|'spiegeln', steuern}` (`open` = Screen-Fenster offen, `extern` = Beamer verbunden, `steuern` = Screen gerade gross auf dem iPad) |
+| App → Web | `beamer` | `{open, extern, camera, mode: 'erweitern', steuern}` (`open` = Screen-Fenster offen, `extern` = Beamer verbunden, `steuern` = Screen gerade gross auf dem iPad) |
 | App → Web | `klassentakt-beamer` (CustomEvent, wie bisher) | `{open, extern}` |
 
 Was die App tut:
@@ -88,29 +88,28 @@ Was die App tut:
 - Solange kein Screen offen ist, zeigt der Beamer eine ruhige Platzhalterseite mit dem Klassentakt-Logo und «Classroom Screen auf dem iPad öffnen». Er spiegelt **nie** den Planer.
 - Beim Verbinden (Vorschlag, statt der Auswahl von Fassung 1): Ist der Screen schon offen, erscheint auf dem iPad nur kurz «Beamer verbunden, zeigt den Classroom Screen». Sonst erscheint ein Hinweis, der nicht blockiert und nach 8 s verschwindet, mit dem Knopf «Classroom Screen öffnen». Es gibt keine Auswahl und keinen Dialog.
 
-**Modi (Runde 4, Florians Entscheid vom 5.11.):** Die Modi lassen sich während der Nutzung umschalten, ohne Dialog.
+**Immer erweitert (Florians Entscheid vom 6.11.):** Den Schalter «Erweitern | Spiegeln» gibt es nicht mehr. Der Planer erscheint nie vorne. `mode` bleibt im Ereignis `beamer` erhalten und ist immer `'erweitern'`.
 
-- **Erweitern** (Standard):
+- **Erweitert:**
   - Der Screen läuft am Beamer. Auf dem iPad zeigt ein verschiebbares Fenster (Bild im Bild) live, was am Beamer läuft.
   - **Antippen = Steuern:** Derselbe Screen kommt gross aufs iPad, in Beamer-Grösse und verkleinert, damit am Beamer nichts umbricht. Er lässt sich dort bedienen: zeichnen, Werkzeuge öffnen und schliessen usw. Der Beamer zeigt sein Live-Bild.
   - Der Knopf «Zum Planer» bringt den Screen zurück an den Beamer, er läuft weiter.
-- **Spiegeln:** Der Beamer zeigt das iPad-Bild. Ein offener Screen kommt dabei aufs iPad.
+- Das Bild im Bild ist frei in der Grösse (zwei Finger oder Griff). «–» blendet es aus, zurück kommt es über den Griff am rechten Rand oder mit ⌘⇧B.
 - Es gibt immer **nur einen Screen**, also ein WebView mit einem Zustand. Die App kopiert nur das Bild. Die Web-App muss dafür nichts tun, gekoppelte Screens braucht es auf dem iPad nicht.
 
 **Web-Anschluss:** keiner nötig. Optional `on('beamer')`, um im Screen «auf dem Beamer» bzw. den Modus anzuzeigen.
 
 **Bearbeiten-Popup (`editing`):** Meldet die App das Merkmal `editing`, schickt die Web-App `send('editing', {open: true})`, bevor sie das Popup «Schritt bearbeiten» öffnet, und `{open: false}` nach dem Schliessen.
-- Solange das Popup offen ist, zeigt der Beamer das letzte Bild weiter, und das Popup bleibt auf dem iPad. Das gilt beim Erweitern, beim Steuern und beim Spiegeln.
+- Solange das Popup offen ist, zeigt der Beamer das letzte Bild weiter, und das Popup bleibt auf dem iPad. Das gilt am Beamer und beim Steuern.
 - Spätestens nach 15 Minuten oder beim Schliessen des Screens zeigt der Beamer wieder live, falls das `{open:false}` verloren geht.
 
 **Sichtbarkeit nach aussen (`display-state`):** Für Inhalte, die die Kinder nicht sehen dürfen (Schritte «nur für mich»).
-- Ereignis `on('display', d)` mit `d = {shown: bool, how: 'beamer'|'mirror'|'capture'|'none'}`. Es gilt **pro WebView** (Planer und Screen getrennt), kommt nach `on('display')`, bei jeder Änderung und als Antwort auf `send('display-get')`.
+- Ereignis `on('display', d)` mit `d = {shown: bool, how: 'beamer'|'capture'|'none'}`. Es gilt **pro WebView** (Planer und Screen getrennt), kommt nach `on('display')`, bei jeder Änderung und als Antwort auf `send('display-get')`.
 - `shown: true`, wenn:
   - `capture`: iPadOS nimmt auf oder spiegelt (Bildschirmaufnahme, AirPlay-Synchronisierung).
-  - `mirror`: Die App spiegelt («Spiegeln»). Planer und Screen zählen beide.
   - `beamer`: Der Screen beim Erweitern, solange ein Beamer verbunden ist. Das gilt auch beim Steuern, weil der Beamer dann ein Live-Bild zeigt.
 - `shown: false` (`none`): kein Beamer, oder der Planer beim Erweitern. Das Bild im Bild bleibt auf dem iPad.
-- Reihenfolge: Beim Einstecken bzw. beim Wechsel auf «Spiegeln» sendet die App zuerst `display` und zeigt das Bild erst 150 ms später nach aussen.
+- Reihenfolge: Beim Einstecken sendet die App zuerst `display` und zeigt das Bild erst 150 ms später nach aussen.
 - Ohne das Merkmal (z. B. Safari) muss die Web-App solche Inhalte gesperrt lassen.
 
 ## 3. Scanner (Anhang in Lektion und Ablage)

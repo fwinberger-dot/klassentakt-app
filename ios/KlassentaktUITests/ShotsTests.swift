@@ -95,7 +95,7 @@ final class ShotsTests: XCTestCase {
         shot("1-kamera-7-anhang-scannen")
     }
 
-    // 2 – Beamer: Erweitern mit Bild im Bild, Steuern auf dem iPad, Spiegeln; Kamera als Werkzeug
+    // 2 – Beamer: immer erweitert, Bild im Bild, Steuern auf dem iPad; Kamera als Werkzeug
     func test2Beamer() {
         launch(["-ktBeamerPreview", "-ktRun", "screen-toggle"])
         let live = app.descendants(matching: .any)["pipLive"]
@@ -105,15 +105,9 @@ final class ShotsTests: XCTestCase {
         tap(live)
         pause(2)
         shot("2-beamer-2-steuern-auf-ipad")
-        tap(app.segmentedControls["screenMode"].buttons["Spiegeln"])
-        pause(2)
-        shot("2-beamer-3-spiegeln")
         tap(app.buttons["screenToPlanner"])
-        pause(2)
-        shot("2-beamer-4-spiegeln-planer")
-        tap(app.segmentedControls["pipMode"].buttons["Erweitern"])
         pause(4)
-        shot("2-beamer-5-wieder-erweitern")
+        shot("2-beamer-3-zurueck-zum-planer")
         app.terminate()
         launch(["-ktBeamerPreview", "-ktRun", "web-open-camera"])
         XCTAssertTrue(app.otherElements["camPreview"].waitForExistence(timeout: 30))

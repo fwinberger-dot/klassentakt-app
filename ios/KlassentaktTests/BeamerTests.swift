@@ -20,12 +20,6 @@ final class BeamerTests: XCTestCase {
         XCTAssertEqual(LiveMirror.throttled(6, thermal: .serious, lowPower: true), 4)
     }
 
-    func testModeNamesForWeb() {
-        XCTAssertEqual(BeamerMode.extend.rawValue, "erweitern")
-        XCTAssertEqual(BeamerMode.mirror.rawValue, "spiegeln")
-        XCTAssertEqual(BeamerMode(rawValue: "spiegeln"), .mirror)
-    }
-
     func testStartsExtendedWithoutScreen() {
         let st = Beamer.shared.stateForWeb
         XCTAssertEqual(st["mode"] as? String, "erweitern")
@@ -33,26 +27,14 @@ final class BeamerTests: XCTestCase {
         XCTAssertEqual(st["open"] as? Bool, false)
     }
 
-    func testModeControl() {
-        var got: BeamerMode?
-        let c = BeamerMode.control(.extend, id: "x") { got = $0 }
-        XCTAssertEqual(c.numberOfSegments, 2)
-        XCTAssertEqual(c.titleForSegment(at: 1), "Spiegeln")
-        c.selectedSegmentIndex = 1
-        c.sendActions(for: .valueChanged)
-        XCTAssertEqual(got, .mirror)
-    }
-
     func testDisplayState() {
         // Ohne Beamer: nichts geht nach aussen.
-        XCTAssertFalse(Beamer.display(isScreen: true, connected: false, mode: .extend, captured: false).shown)
+        XCTAssertFalse(Beamer.display(isScreen: true, connected: false, captured: false).shown)
         // Erweitern: Screen am Beamer sichtbar, Planer nicht.
-        XCTAssertEqual(Beamer.display(isScreen: true, connected: true, mode: .extend, captured: false).how, "beamer")
-        XCTAssertFalse(Beamer.display(isScreen: false, connected: true, mode: .extend, captured: false).shown)
-        // Spiegeln: alles zählt als sichtbar.
-        XCTAssertEqual(Beamer.display(isScreen: false, connected: true, mode: .mirror, captured: false).how, "mirror")
+        XCTAssertEqual(Beamer.display(isScreen: true, connected: true, captured: false).how, "beamer")
+        XCTAssertFalse(Beamer.display(isScreen: false, connected: true, captured: false).shown)
         // Aufnahme/AirPlay geht vor.
-        let c = Beamer.display(isScreen: false, connected: false, mode: .extend, captured: true)
+        let c = Beamer.display(isScreen: false, connected: false, captured: true)
         XCTAssertTrue(c.shown)
         XCTAssertEqual(c.how, "capture")
     }
