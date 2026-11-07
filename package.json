@@ -9,11 +9,10 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js && node --check src/update-preload.js && node --check src/ink.js && node --check src/server.js",
-    "dist:mac": "npm run build:ink && electron-builder --mac --publish never -c.mac.identity=-",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js && node --check src/update-preload.js && node --check src/server.js",
+    "dist:mac": "electron-builder --mac --publish never -c.mac.identity=-",
     "test": "node --test test/*.test.js",
-    "dist:mas": "npm run build:ink && electron-builder --config build/electron-builder.mas.js --mac mas --universal --publish never",
-    "build:ink": "scripts/build-ink.sh"
+    "dist:mas": "electron-builder --config build/electron-builder.mas.js --mac mas --universal --publish never"
   },
   "devDependencies": {
     "electron": "44.7.2",
@@ -77,13 +76,7 @@
         "ElectronTeamID": "Z28KL39TYK",
         "ITSAppUsesNonExemptEncryption": false
       }
-    },
-    "extraResources": [
-      {
-        "from": "native/bin/kt-ink",
-        "to": "kt-ink"
-      }
-    ]
+    }
   },
   "masVersion": "1.0.0"
 }

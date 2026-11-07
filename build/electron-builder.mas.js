@@ -10,5 +10,5 @@ module.exports = {
   extraMetadata: { version: pkg.masVersion },
   files: [...base.files, ...UPDATER],
   // Datenschutz-Manifest gehört nach Contents/Resources/
-  extraResources: [...base.extraResources, { from: 'build/PrivacyInfo.xcprivacy', to: 'PrivacyInfo.xcprivacy' }],
+  extraResources: [{ from: 'build/PrivacyInfo.xcprivacy', to: 'PrivacyInfo.xcprivacy' }],
 };

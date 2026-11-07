@@ -31,8 +31,6 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
-      - name: Handschrift-Hilfsprogramm kt-ink bauen (Vision)
-        run: npm run build:ink
       - name: Secrets vorhanden?
         run: |
           fehlt=""
@@ -69,9 +67,6 @@ jobs:
           grep -q "com.apple.security.app-sandbox" "$RUNNER_TEMP/ent.plist" || { echo "::error::keine Sandbox"; exit 1; }
           test -f "$APP/Contents/embedded.provisionprofile" || { echo "::error::Profil fehlt im Paket"; exit 1; }
           test -f "$APP/Contents/Resources/PrivacyInfo.xcprivacy" || { echo "::error::PrivacyInfo fehlt"; exit 1; }
-          INK="$APP/Contents/Resources/kt-ink"
-          test -x "$INK" || { echo "::error::kt-ink fehlt im Paket"; exit 1; }
-          codesign -d --entitlements - --xml "$INK" | grep -q "com.apple.security.app-sandbox" || { echo "::error::kt-ink ohne Sandbox"; exit 1; }
           if npx @electron/asar list "$APP/Contents/Resources/app.asar" | grep -q updater; then echo "::error::Selbst-Update im Paket"; exit 1; fi
           plutil -p "$APP/Contents/Info.plist" | grep -E "CFBundleIdentifier|CFBundleShortVersionString|CFBundleVersion|ITSAppUses"
       - uses: actions/upload-artifact@v4

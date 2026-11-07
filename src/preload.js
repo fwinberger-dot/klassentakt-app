@@ -4,10 +4,6 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 const host = (() => { try { return location.hostname; } catch { return ''; } })();
 const trusted = host === 'klassentakt.ch' || host.endsWith('.klassentakt.ch');
-const ink = process.argv.includes('--kt-ink'); // Handschrift-Erkennung (kt-ink) vorhanden
-// Nachrichten wie in der iPad-App (send/on); die Mac-App kennt bisher nur recognize-ink → ink-text.
-const SEND = ['recognize-ink'];
-const EVENTS = ['ink-text'];
 
 if (trusted) {
   contextBridge.exposeInMainWorld('klassentaktShell', Object.freeze({
@@ -19,15 +15,7 @@ if (trusted) {
       'beamer',
       'screen-control', // Menü «Screen steuern» (⌘⇧S) → onCommand({name:'screen-control'})
       ...(process.mas ? [] : ['update']),
-      ...(ink ? ['ink-text'] : []),
     ]),
-    send: (name, payload) => { if (SEND.includes(name)) ipcRenderer.send('shell:send', name, payload); },
-    on: (name, fn) => {
-      if (!EVENTS.includes(name) || typeof fn !== 'function') return () => {};
-      const h = (_e, n, p) => { if (n === name) { try { fn(p); } catch {} } };
-      ipcRenderer.on('shell:event', h);
-      return () => ipcRenderer.removeListener('shell:event', h);
-    },
     onCommand: (fn) => {
       if (typeof fn !== 'function') return () => {};
       const h = (_e, cmd) => { try { fn(cmd); } catch {} };
