@@ -20,29 +20,29 @@ test('Brücke meldet screen-control und bietet onCommand', () => {
   assert.match(pre, /ipcRenderer\.on\('shell:command', h\)/);
 });
 
-test('Schwebende Vorschau: Brücke, IPC nur aus der App, Menü', () => {
+test('Schwebende Vorschau: ktfloat-Fenster, Brücke, Menü', () => {
   const pre = read('src/preload.js');
-  assert.match(pre, /'screen-pip-schwebend',/);
-  for (const c of ['pip:open', 'pip:close', 'pip:state', 'pip:changed']) assert.ok(pre.includes(`'${c}'`), c);
+  assert.match(pre, /'float-preview',/);
+  assert.match(pre, /send: \(name, payload\) => \{ if \(name === 'float-preview'\)/);
   const main = read('src/main.js');
-  assert.match(main, /ipcMain\.handle\('pip:open', \(e, url\) => \{\n\s+if \(!fromApp\(e\)\) return false;/);
-  assert.match(main, /if \(!isApp\(target\)\) return false;/);
+  assert.match(main, /\(isApp\(url\) \|\| blank\) && pip\.isPipRequest\(frameName\)/);
+  assert.match(main, /else if \(pip\.isPipRequest\(details\.frameName\)\) pip\.adopt\(child\)/);
   assert.match(main, /Schwebende Vorschau schliessen/);
 });
 
-test('pip.pickBounds: Standard unten rechts, gemerkter Ort nur auf vorhandenem Bildschirm', () => {
-  // electron wird nur zum Laden benötigt; pickBounds ist reine Rechnung
+test('pip: Grösse aus window.open-Features, Mindestgrösse, Ort nur auf vorhandenem Bildschirm', () => {
   const Module = require('module');
   const orig = Module._load;
-  Module._load = function (r, ...a) { return r === 'electron' ? { app: {}, screen: {}, BrowserWindow: class {} } : orig.call(this, r, ...a); };
-  const { pickBounds, MIN } = require('../src/pip');
+  Module._load = function (r, ...a) { return r === 'electron' ? { app: {}, screen: {} } : orig.call(this, r, ...a); };
+  const { sizeFrom, pickPosition, isPipRequest } = require('../src/pip');
   Module._load = orig;
-  const d = [{ x: 0, y: 0, width: 1440, height: 900 }];
-  const def = pickBounds(null, d);
-  assert.deepStrictEqual([def.x + def.width, def.y + def.height], [1440 - 24, 900 - 24]);
-  assert.deepStrictEqual(pickBounds({ x: 100, y: 50, width: 600, height: 400 }, d), { x: 100, y: 50, width: 600, height: 400 });
-  const weg = pickBounds({ x: 3000, y: 50, width: 600, height: 400 }, d); // Beamer abgesteckt
-  assert.strictEqual(weg.width, 600);
-  assert.ok(weg.x + weg.width <= 1440);
-  assert.strictEqual(pickBounds({ width: 10, height: 10 }, d).width, MIN.width);
+  assert.ok(isPipRequest('ktfloat') && !isPipRequest('wp_classroom') && !isPipRequest(''));
+  assert.deepStrictEqual(sizeFrom('popup=yes,width=600,height=400'), { width: 600, height: 400 });
+  assert.deepStrictEqual(sizeFrom(''), { width: 480, height: 353 });
+  assert.deepStrictEqual(sizeFrom('width=10,height=10'), { width: 260, height: 200 });
+  const a = [{ x: 0, y: 0, width: 1440, height: 900 }];
+  const s = { width: 480, height: 353 };
+  assert.deepStrictEqual(pickPosition(null, s, a), { x: 1440 - 480 - 24, y: 900 - 353 - 24 });
+  assert.deepStrictEqual(pickPosition({ x: 100, y: 50 }, s, a), { x: 100, y: 50 });
+  assert.deepStrictEqual(pickPosition({ x: 3000, y: 50 }, s, a), { x: 1440 - 480 - 24, y: 900 - 353 - 24 }); // Beamer abgesteckt
 });

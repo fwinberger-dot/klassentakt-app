@@ -122,7 +122,7 @@ function createWindow(startUrl) {
 
 /* ---------- Navigation: Klassentakt im Fenster, alles andere im Browser ---------- */
 function wireNavigation(wc) {
-  wc.setWindowOpenHandler(({ url, frameName }) => {
+  wc.setWindowOpenHandler(({ url, frameName, features }) => {
     const ext = externalLoginUrl(url);
     if (ext) { startExternalLogin(ext, wc); return { action: 'deny' }; }
     if (isGoogleAuth(url)) { startExternalLogin(START_URL + 'auth/google/start?next=%2F&app=1', wc); return { action: 'deny' }; }
@@ -135,6 +135,13 @@ function wireNavigation(wc) {
           ...beamer.windowOptions(win),
           webPreferences: { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true },
         },
+      };
+    }
+    // Schwebende Vorschau: window.open('about:blank','ktfloat',…) – bleibt Kindfenster (opener, BroadcastChannel)
+    if ((isApp(url) || blank) && pip.isPipRequest(frameName)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: pip.windowOptions(features, { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true }),
       };
     }
     if (isApp(url) || isLogin(url) || blank) {
@@ -167,6 +174,7 @@ function wireNavigation(wc) {
   wc.on('did-create-window', (child, details) => {
     wireNavigation(child.webContents);
     if (beamer.isScreenRequest(details.url, details.frameName)) beamer.adopt(child, win);
+    else if (pip.isPipRequest(details.frameName)) pip.adopt(child);
   });
 }
 
@@ -229,23 +237,6 @@ function wireBridge() {
 /** Befehl an die Web-App im Hauptfenster (Planer), nicht ans Screen-Fenster. */
 function shellCommand(name) {
   try { if (win && !win.isDestroyed() && isApp(win.webContents.getURL())) win.webContents.send('shell:command', { name }); } catch {}
-}
-/* ---------- Schwebende Vorschau (window.klassentaktShell.pip) ---------- */
-function wirePip() {
-  const fromApp = (e) => isApp(e.senderFrame ? e.senderFrame.url : e.sender.getURL());
-  ipcMain.handle('pip:open', (e, url) => {
-    if (!fromApp(e)) return false;
-    let target;
-    try { target = new URL(String(url || ''), e.sender.getURL()).toString(); } catch { return false; }
-    if (!isApp(target)) return false;
-    return pip.open(target, { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true }, (w) => wireNavigation(w.webContents));
-  });
-  ipcMain.handle('pip:close', (e) => (fromApp(e) ? pip.close() : false));
-  ipcMain.handle('pip:state', (e) => (fromApp(e) ? pip.state() : null));
-}
-function broadcastPip() {
-  const st = pip.state();
-  BrowserWindow.getAllWindows().forEach((w) => { try { if (isApp(w.webContents.getURL())) w.webContents.send('pip:changed', st); } catch {} });
 }
 function broadcastBeamer() {
   const st = beamer.state();
@@ -324,8 +315,7 @@ app.whenReady().then(() => {
   if (updater) updater.init(() => win);
   beamer.init(() => { buildMenu(); broadcastBeamer(); });
   wireBridge();
-  pip.init(() => { buildMenu(); broadcastPip(); });
-  wirePip();
+  pip.init(() => buildMenu());
   buildMenu();
   createWindow();
   if (pendingLink) { handleDeepLink(pendingLink); pendingLink = null; }
