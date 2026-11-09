@@ -5,6 +5,7 @@ const { app, BrowserWindow, Menu, shell, session, dialog, systemPreferences, ipc
 const path = require('path');
 const fs = require('fs');
 const beamer = require('./beamer');
+const pip = require('./pip');
 // Mac App Store (process.mas): Apple aktualisiert die App, darum dort kein eigenes Update (Dateien fehlen im Paket).
 const updater = process.mas ? null : require('./updater');
 
@@ -204,6 +205,7 @@ function beamerMenu() {
       { label: 'Screen auf nächsten Bildschirm', accelerator: 'CmdOrCtrl+Shift+B', enabled: s.open && s.displays.length > 1, click: () => beamer.moveNext() },
       { label: 'Screen-Vollbild an/aus', accelerator: 'CmdOrCtrl+Shift+F', enabled: s.open, click: () => beamer.toggleFullscreen() },
       { label: 'Screen steuern', accelerator: 'CmdOrCtrl+Shift+S', enabled: s.open, click: () => shellCommand('screen-control') },
+      { label: 'Schwebende Vorschau schliessen', enabled: pip.state().open, click: () => pip.close() },
       { type: 'separator' },
       { label: 'Screen anzeigen auf', enabled: s.open && s.displays.length > 1, submenu: shows.length ? shows : [{ label: 'Kein Bildschirm', enabled: false }] },
       { type: 'separator' },
@@ -227,6 +229,23 @@ function wireBridge() {
 /** Befehl an die Web-App im Hauptfenster (Planer), nicht ans Screen-Fenster. */
 function shellCommand(name) {
   try { if (win && !win.isDestroyed() && isApp(win.webContents.getURL())) win.webContents.send('shell:command', { name }); } catch {}
+}
+/* ---------- Schwebende Vorschau (window.klassentaktShell.pip) ---------- */
+function wirePip() {
+  const fromApp = (e) => isApp(e.senderFrame ? e.senderFrame.url : e.sender.getURL());
+  ipcMain.handle('pip:open', (e, url) => {
+    if (!fromApp(e)) return false;
+    let target;
+    try { target = new URL(String(url || ''), e.sender.getURL()).toString(); } catch { return false; }
+    if (!isApp(target)) return false;
+    return pip.open(target, { preload: path.join(__dirname, 'preload.js'), additionalArguments: [`--kt-shell-version=${app.getVersion()}`], contextIsolation: true, sandbox: true }, (w) => wireNavigation(w.webContents));
+  });
+  ipcMain.handle('pip:close', (e) => (fromApp(e) ? pip.close() : false));
+  ipcMain.handle('pip:state', (e) => (fromApp(e) ? pip.state() : null));
+}
+function broadcastPip() {
+  const st = pip.state();
+  BrowserWindow.getAllWindows().forEach((w) => { try { if (isApp(w.webContents.getURL())) w.webContents.send('pip:changed', st); } catch {} });
 }
 function broadcastBeamer() {
   const st = beamer.state();
@@ -305,6 +324,8 @@ app.whenReady().then(() => {
   if (updater) updater.init(() => win);
   beamer.init(() => { buildMenu(); broadcastBeamer(); });
   wireBridge();
+  pip.init(() => { buildMenu(); broadcastPip(); });
+  wirePip();
   buildMenu();
   createWindow();
   if (pendingLink) { handleDeepLink(pendingLink); pendingLink = null; }

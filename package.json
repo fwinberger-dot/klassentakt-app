@@ -9,7 +9,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js && node --check src/update-preload.js && node --check src/server.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/beamer.js && node --check src/updater.js && node --check src/update-preload.js && node --check src/server.js && node --check src/pip.js",
     "dist:mac": "electron-builder --mac --publish never -c.mac.identity=-",
     "test": "node --test test/*.test.js",
     "dist:mas": "electron-builder --config build/electron-builder.mas.js --mac mas --universal --publish never"
